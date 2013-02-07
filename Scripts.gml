@@ -91,7 +91,41 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
 //This script draws the player
 //============================
 
+//NOTE: Since this is a drawing script, we need to draw in the proper order (or else the wrong things will be on top of the wrong stuff etc)
+
+//Define some temp variables for screen-based wing offsets
+a = plyrX/window_get_width()*6 - 3
+b = plyrY/window_get_height()*6 - 3
+
+//Draw the player craft rear wing
+draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b);
+draw_set_blend_mode(bm_add);    //Set the blend mode
+if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
+if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
+draw_set_blend_mode(bm_normal);    //Reset the blend mode
+
+//Draw the player craft body
 draw_sprite(plyrShipBase,-1,plyrX,plyrY);
+
+//Draw the player craft front wing
+draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b);
+draw_set_blend_mode(bm_add);    //Set the blend mode
+if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY-plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
+if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY-plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
+draw_set_blend_mode(bm_normal);    //Reset the blend mode
+
+//Manage the timer for the beacon FX
+if plyrFXBeaconTimer = 0 then
+{
+      plyrFXBeaconTimer = 70
+} else {plyrFXBeaconTimer -= 1}
+
+
+//TODO: Animate the ship roll
+
+#define gameController
+//Call the playerHandler Scripts
+playerHandler();
 
 #define playerHandler
 //This script is the master script for player control
@@ -142,6 +176,36 @@ plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders
 
 
 
+//Manage player shooting
+//----------------------
+
+//Shoot main weapon
+if (keyboard_check_direct(keyLog[4]) && plyrMainWpnRld < 1) then
+{
+    //Create the bullet particles (one per wing)
+    aa = instance_create(plyrX-3 - a, plyrY+plyrSpdY/3-2 - b, particle);
+    ab = instance_create(plyrX+3 + a, plyrY+plyrSpdY/3-2 + b, particle);
+    aa.depth = 10;      //Set the depth so that the bullet appears behind the ship
+    
+    switch (plyrCurMainWpn)
+    {
+        case gun_gatling:   //Turn the bullets into gatling gun bullets
+        aa.xSpd = 19 + plyrSpdX*0.6;
+        ab.xSpd = 19 + plyrSpdX*0.6;
+        aa.yAcc = 0.05;     //Give the bullets slight gravity
+        ab.yAcc = 0.05;
+        aa.dmg = 1;
+        ab.dmg = 1;
+    }
+    
+    //Set the reload timer
+    plyrMainWpnRld = 5;
+
+
+}
+
+//Reduce shooting timer
+plyrMainWpnRld -= 1
 
 
 
@@ -153,16 +217,15 @@ plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders
 
 
 
-
-
-
-#define gameController
-//Call the playerHandler Scripts
-playerHandler();
 
 #define Initialization
 //In this script, we define all of the variables we are going to use elsewhere in the game
 //========================================================================================
+
+///SET THE FUCKING FRAMES PER SECOND
+//my GOD 30FPS games piss me off (and make my eyes hurt).
+display_set_frequency(60);
+room_speed = 60;
 
 //Declare the player control array. This array will be used to keep track of the player
 //keyboard key configuration. We do this so that the player may reconfigure his keys in game.
@@ -187,9 +250,55 @@ plyrX = 0;   //Player X position
 plyrY = 0;   //Player Y position
 plyrSpdX = 0;        //Speed in X direction, in pixels per second
 plyrSpdY = 0;        //Speed in Y direction, in pixels per second
-plyrMaxSpdX = 15;        //Max speed in X direction, in pixels per second
-plyrMaxSpdY = 12;        //Max speed in Y direction, in pixels per second
+plyrMaxSpdX = 7.5;        //Max speed in X direction, in pixels per second
+plyrMaxSpdY = 6;        //Max speed in Y direction, in pixels per second
 plyrAcc = 3;    //Player Acceleration, in pixels per second squared
+plyrMainWeapon = 0;     //Default main weapon, chaingun
+plyrMainWpnRld = 0;         //Main weapon reload timer
+plyrCurMainWpn = gun_gatling;         //Current main weapon
 
+plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
+
+#define particleHandler
+//Here we manage the day-to-day lives of the particles
+//----------------------------------------------------
+
+//Manage position
+x += xSpd;
+y += ySpd;
+
+//Destroy out of-play-particles
+if (abs(window_get_width()/2 - x) > window_get_width()/2) then {instance_destroy()}
+if (abs(window_get_height()/2 - y) > window_get_height()/2) then {instance_destroy()}
+
+//Manage collisions between particles
+a = collision_line(x, y, x+xSpd, y+ySpd, particle, false, true)
+if (a > 0)
+{
+    if (depth = a.depth)    //Have to do nested ifs like this because game maker is gay
+    {
+        a.ySpd = random(200)/10-10;
+        a.xSpd = 21;
+        ySpd = random(200)/10-10;
+        xSpd = 21;
+        //TODO Create sparks and shit
+    }
+}
+
+
+
+
+//Manage acceleration
+xSpd += xAcc;
+ySpd += yAcc;
+
+#define particleInit
+//Script called by particles upon creation to initialize their variables
+xSpd = 0;
+ySpd = 0;
+xAcc = 0;
+yAcc = 0;
+dmg = 0;        //Damage the particle inflicts
+coll = 0;       //Whether or not the particle can collide with stuff
 
 
