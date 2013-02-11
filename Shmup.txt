@@ -1,0 +1,20 @@
+Horizontal scrolling shmup
+
+Stages have environmental obstacles and hazards that the player can use for cover.  Stages also occasionally pause for small arena-esque fights.
+
+
+Ship has a default weapon, which is a rapidly firing weak shot; and a secondary weapon, which could be any one of multiple weapons(will list later) in the game.  Each of these weapons has a limited amount of ammunition so eventually you'll have to switch.  Pressing both shoot buttons at the same time deploys the secondary weapon as a turret and it fires at all of the enemies on the screen until its either a) runs out of ammo or b) is picked up by the ship again.  It also attracts most of the gunfire(serving as a pseudo-bomb).  Player can aim the weapons in 8 directions.
+ship also has an 8 way dash. Costs boost.
+
+Scoring system
+Points are earned via kills and scoring multi/chain kills earns bonus.  When an enemy is killed, a timer begins to count down. The amount of time earned depends on the enemy type(the harder the enemy is to kill, the more time + bonus points gained). Each successive kill earned before the timer reaches zero adds slightly more time and a certain amount of bonus points to the timer. 
+
+Multiple enemy types, each one having its own attack/ movement pattern. they can be equipped with any weapon
+
+
+
+weapon 1- a second rapid fire weapon. Each bullet does slightly more damage than the default weapon and it fires slightly faster.
+weapon 2- slow grenade-launcher type weapon. Has a slow rate of fire but a massive explosion that triggers either when the button is released or when it collides with something
+weapon 3- Penetrating laser beam. 
+weapon 4- Laser-ring. Fires small laser rings that bounce off of walls.  Can be charged.   longer charge= bigger/more powerful shot.  Max charge creates giant ring that splits in many smaller rings. These shots can be shot by enemy shots(how many shots they can take depends on the strength of the shot)
+weapon 5- 
