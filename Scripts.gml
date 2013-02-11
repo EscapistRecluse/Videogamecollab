@@ -120,12 +120,57 @@ if plyrFXBeaconTimer = 0 then
       plyrFXBeaconTimer = 70
 } else {plyrFXBeaconTimer -= 1}
 
+//Draw the player wing vortices
+for (a = 0; a < 2; a+=1)
+{
+    z = make_color_hsv(0, 0, 150+a*50)  //Set the color for the wingtip trail
+    h = (plyrFXTrailLen-1)*a            //Shortcut varaible, used to store the offset in the array for the second tail
+    
+    for (b = 0; b < plyrFXTrailLen-1; b+=1)
+    {
+    
+        //This is a slightly complicated way of drawing tails, but the results are fantastic
+        draw_primitive_begin(pr_trianglestrip);
+        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1], z, (b/plyrFXTrailLen)*0.3);    //Top left vertex
+        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1], z, ((b+1)/plyrFXTrailLen)*0.3);    //Top right vertex
+        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1]+3, z, (b/plyrFXTrailLen)*0.3);    //Bottom left vertex
+        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1]+3, z, ((b+1)/plyrFXTrailLen)*0.3);    //Bottom right vertex
+        draw_primitive_end();
+    
+    }
+}
+
+//Update the player wing vortices
+for (a = 0; a < 2; a+=1)
+{
+    for (b = 0; b < plyrFXTrailLen-1; b+=1)
+    {
+        //Move all trails back one segment
+        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd;
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1];
+    
+    }
+    plyrFXTrail[(plyrFXTrailLen-1)*(a+1),0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
+    plyrFXTrail[(plyrFXTrailLen-1)*(a+1),1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
+}
+
 
 //TODO: Animate the ship roll
 
 #define gameController
 //Call the playerHandler Scripts
 playerHandler();
+
+//Hack to add enemies when the space bar is pressed
+if (keyboard_check(vk_space))
+{
+    aa = instance_create(window_get_width(), random(window_get_height()), enemy);
+    aa.type = enemy_bomb;
+    with (aa) enemyInit();
+}
+
+//Hack to add experience
+if (keyboard_check(ord('T'))) {experience += 100};
 
 #define playerHandler
 //This script is the master script for player control
@@ -179,11 +224,15 @@ plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders
 //Manage player shooting
 //----------------------
 
+//Define some temp variables for screen-based wing offsets
+a = plyrX/window_get_width()*6 - 3
+b = plyrY/window_get_height()*6 - 3
+
 //Shoot main weapon
 if (keyboard_check_direct(keyLog[4]) && plyrMainWpnRld < 1) then
 {
     //Create the bullet particles (one per wing)
-    aa = instance_create(plyrX-3 - a, plyrY+plyrSpdY/3-2 - b, particle);
+    aa = instance_create(plyrX-3 - a, plyrY-plyrSpdY/3-2 - b, particle);
     ab = instance_create(plyrX+3 + a, plyrY+plyrSpdY/3-2 + b, particle);
     aa.depth = 10;      //Set the depth so that the bullet appears behind the ship
     
@@ -196,6 +245,10 @@ if (keyboard_check_direct(keyLog[4]) && plyrMainWpnRld < 1) then
         ab.yAcc = 0.05;
         aa.dmg = 1;
         ab.dmg = 1;
+        aa.weap = 1;        //Classify as player weapons
+        ab.weap = 1;
+        aa.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;  //Bullet penetration upgrades at level 3 & 5, then every 4th level after that
+        ab.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;
     }
     
     //Set the reload timer
@@ -242,7 +295,10 @@ keyLog[5] = vk_lshift;      //The left shift button
 
 //Declare game variables
 yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
-xBorders = 10;           //Prevent the player from going closer than 0 pixels to X screen edges
+xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
+xGameMoveSpd = 40;       //Game horizontal cruise speed in pixels per second
+experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
+mainWpnEvol = 0         //How evolved the main weapon is
 
 
 //Declare player Variables
@@ -258,6 +314,45 @@ plyrMainWpnRld = 0;         //Main weapon reload timer
 plyrCurMainWpn = gun_gatling;         //Current main weapon
 
 plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
+plyrFXTrailLen = 10;         //Number of sections to the player wingtip trails
+for (i=0; i<plyrFXTrailLen*2; i+=1)
+{
+    plyrFXTrail[i, 0] = 0;
+    plyrFXTrail[i, 1] = 0;
+}
+
+
+
+
+
+
+#define enemyInit
+//This script intializes the enemies
+//----------------------------------
+
+//Note: Enemy actions are controlled by finite state machines
+//Enemies also have a 'type' which governs the FSMs
+
+//High-level control varaibles
+state = 0;      //The current state of the enemy
+
+
+//Low level control varaibles
+xSpd = 0;       //X movement speed
+ySpd = 0;       //Y movement speed
+reload = 0;     //Reload timer
+
+
+//Set varaibles dependent on the enemy type
+switch (type)
+{
+    case enemy_bomb:
+        hlth = 1;   //Bomber can take only a single hit
+        xSpd = 10;
+        break;
+
+
+}
 
 #define particleHandler
 //Here we manage the day-to-day lives of the particles
@@ -285,8 +380,37 @@ if (a > 0)
     }
 }
 
+//Manage weapon collisions
+if (weap > 0)
+{
+    switch (type)       //'type' variable only used for weapons
+    {
+    case gun_gatling:
+        a = collision_line(x, y, x+xSpd, y+ySpd, enemy, true, false);
+        if (a > 0)
+        {
+            a.hlth -= dmg;      //Subtract damage when hits an enemy
+            numImpacts -= 1;    //Subtract one from the number of impacts remaining
+        }
+        break;
+    }
+}
 
-
+//Destroy particles with no impacts remaining (the 'health' of the particle)
+if (numImpacts < 0)
+{
+    if (weap > 0)
+    {
+        switch (type)       //'type' variable only used for weapons
+        {
+        case gun_gatling:
+            instance_destroy();
+            break;
+        }
+    }else {
+        instance_destroy();
+    }
+}
 
 //Manage acceleration
 xSpd += xAcc;
@@ -299,6 +423,32 @@ ySpd = 0;
 xAcc = 0;
 yAcc = 0;
 dmg = 0;        //Damage the particle inflicts
-coll = 0;       //Whether or not the particle can collide with stuff
+weap = 0;       //Whether or not the particle is a weapon (0 is not, 1 is player, 2 is enemy)
+numImpacts = 1;     //How many impacts the particle can sustain before dying
+type = gun_gatling;     //Type of weapon (only used if the particle is a weapon)
 
+#define enemyHandler
+//This script handles all of the enemy actions
+
+switch (type)
+{
+    case enemy_bomb:        //This enemy will just be a slowly floating bomb that explodes shortly after being hit or coming near the player
+        //Decelerate the bomb
+        if (xSpd < gameController.xGameMoveSpd*0.85)
+        {
+            xSpd += (gameController.xGameMoveSpd - xSpd)*0.1;
+        }
+        
+        //Drift the bomb toward the player with experience
+        ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.013
+        
+        
+}
+
+//All enemies will naturally drift at the speed of the game
+x += xSpd - gameController.xGameMoveSpd;
+y += ySpd;
+
+//Destroy all enemies that leave the screen on the left side
+if (x < 0) {instance_destroy()};
 
