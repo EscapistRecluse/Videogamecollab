@@ -1,3 +1,115 @@
+#define Initialization
+//In this script, we define all of the variables we are going to use elsewhere in the game
+//========================================================================================
+
+///SET THE FUCKING FRAMES PER SECOND
+//my GOD 30FPS games piss me off (and make my eyes hurt).
+display_set_frequency(60);
+room_speed = 60;
+
+//Declare the player control array. This array will be used to keep track of the player
+//keyboard key configuration. We do this so that the player may reconfigure his keys in game.
+keyLog[5] = -1;     //Declare an array with spaces for 6 buttons
+
+//Set the keyboard presets
+keyLog[0] = vk_left;
+keyLog[1] = vk_right;
+keyLog[2] = vk_up;
+keyLog[3] = vk_down;
+keyLog[4] = vk_lcontrol;    //The left control button
+keyLog[5] = vk_lshift;      //The left shift button
+
+
+//Declare game variables
+yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
+xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
+xGameMoveSpd = 40;       //Game horizontal cruise speed in pixels per second
+experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
+mainWpnEvol = 0         //How evolved the main weapon is
+
+
+//Declare player Variables
+plyrX = 0;   //Player X position
+plyrY = 0;   //Player Y position
+plyrSpdX = 0;        //Speed in X direction, in pixels per second
+plyrSpdY = 0;        //Speed in Y direction, in pixels per second
+plyrMaxSpdX = 7.5;        //Max speed in X direction, in pixels per second
+plyrMaxSpdY = 6;        //Max speed in Y direction, in pixels per second
+plyrAcc = 3;    //Player Acceleration, in pixels per second squared
+plyrMainWeapon = 0;     //Default main weapon, chaingun
+plyrMainWpnRld = 0;         //Main weapon reload timer
+plyrCurMainWpn = gun_gatling;         //Current main weapon
+
+plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
+plyrFXTrailLen = 10;         //Number of sections to the player wingtip trails
+for (i=0; i<plyrFXTrailLen*2; i+=1)
+{
+    plyrFXTrail[i, 0] = 0;
+    plyrFXTrail[i, 1] = 0;
+}
+
+
+
+
+
+
+#define enemyInit
+//This script intializes the enemies
+//----------------------------------
+
+//Note: Enemy actions are controlled by finite state machines
+//Enemies also have a 'type' which governs the FSMs
+
+//High-level control varaibles
+state = 0;      //The current state of the enemy
+
+
+//Low level control varaibles
+xSpd = 0;       //X movement speed
+ySpd = 0;       //Y movement speed
+reload = 0;     //Reload timer
+
+
+//Set varaibles dependent on the enemy type
+switch (type)
+{
+    case enemy_bomb:
+        hlth = 1;   //Bomber can take only a single hit
+        xSpd = 10;
+        break;
+
+
+}
+
+#define particleInit
+//Script called by particles upon creation to initialize their variables
+xSpd = 0;
+ySpd = 0;
+xAcc = 0;
+yAcc = 0;
+dmg = 0;        //Damage the particle inflicts
+weap = 0;       //Whether or not the particle is a weapon (0 is not, 1 is player, 2 is enemy)
+numImpacts = 1;     //How many impacts the particle can sustain before dying
+type = gun_gatling;     //Type of weapon (only used if the particle is a weapon)
+
+#define sparkFXInit
+//Initialize the sparks FX
+
+//Configurable variables
+numSparks = 30;
+sparkColor = c_white;
+initXSpeed = 30;
+initYSpeed = 20;
+acceleration = 0.55;     //How much to slow the particles down by
+lifetime = 8;           //How many frames to keep a particle after it has stopped moving
+spreadX = 24;           //Particle initial spread, in the X direction
+spreadY = 24;           //Particle initial spread, in the Y direction
+offsetX = 15;           //Defines the speed bias left or right
+offsetY = 10;           //Defines the speed bias up and down
+
+//Nonconfigurable variables
+init = false;           //Whether or not the particle system has already been created
+
 #define menuHandler
 //Here we manage menu related things
 //==================================
@@ -100,8 +212,8 @@ b = plyrY/window_get_height()*6 - 3
 //Draw the player craft rear wing
 draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b);
 draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
-if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
+if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
+if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
 
 //Draw the player craft body
@@ -110,8 +222,8 @@ draw_sprite(plyrShipBase,-1,plyrX,plyrY);
 //Draw the player craft front wing
 draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b);
 draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY-plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
-if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY-plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
+if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
+if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
 
 //Manage the timer for the beacon FX
@@ -124,7 +236,7 @@ if plyrFXBeaconTimer = 0 then
 for (a = 0; a < 2; a+=1)
 {
     z = make_color_hsv(0, 0, 150+a*50)  //Set the color for the wingtip trail
-    h = (plyrFXTrailLen-1)*a            //Shortcut varaible, used to store the offset in the array for the second tail
+    h = (plyrFXTrailLen)*a            //Shortcut varaible, used to store the offset in the array for the second tail
     
     for (b = 0; b < plyrFXTrailLen-1; b+=1)
     {
@@ -148,10 +260,9 @@ for (a = 0; a < 2; a+=1)
         //Move all trails back one segment
         plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd;
         plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1];
-    
     }
-    plyrFXTrail[(plyrFXTrailLen-1)*(a+1),0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
-    plyrFXTrail[(plyrFXTrailLen-1)*(a+1),1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
 }
 
 
@@ -171,6 +282,12 @@ if (keyboard_check(vk_space))
 
 //Hack to add experience
 if (keyboard_check(ord('T'))) {experience += 100};
+
+//Hack to create spark FX when mouse clicked
+if (mouse_check_button_released(mb_left))
+{
+    instance_create(mouse_x,mouse_y,FXsparks);
+}
 
 #define playerHandler
 //This script is the master script for player control
@@ -271,89 +388,6 @@ plyrMainWpnRld -= 1
 
 
 
-#define Initialization
-//In this script, we define all of the variables we are going to use elsewhere in the game
-//========================================================================================
-
-///SET THE FUCKING FRAMES PER SECOND
-//my GOD 30FPS games piss me off (and make my eyes hurt).
-display_set_frequency(60);
-room_speed = 60;
-
-//Declare the player control array. This array will be used to keep track of the player
-//keyboard key configuration. We do this so that the player may reconfigure his keys in game.
-keyLog[5] = -1;     //Declare an array with spaces for 6 buttons
-
-//Set the keyboard presets
-keyLog[0] = vk_left;
-keyLog[1] = vk_right;
-keyLog[2] = vk_up;
-keyLog[3] = vk_down;
-keyLog[4] = vk_lcontrol;    //The left control button
-keyLog[5] = vk_lshift;      //The left shift button
-
-
-//Declare game variables
-yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
-xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
-xGameMoveSpd = 40;       //Game horizontal cruise speed in pixels per second
-experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
-mainWpnEvol = 0         //How evolved the main weapon is
-
-
-//Declare player Variables
-plyrX = 0;   //Player X position
-plyrY = 0;   //Player Y position
-plyrSpdX = 0;        //Speed in X direction, in pixels per second
-plyrSpdY = 0;        //Speed in Y direction, in pixels per second
-plyrMaxSpdX = 7.5;        //Max speed in X direction, in pixels per second
-plyrMaxSpdY = 6;        //Max speed in Y direction, in pixels per second
-plyrAcc = 3;    //Player Acceleration, in pixels per second squared
-plyrMainWeapon = 0;     //Default main weapon, chaingun
-plyrMainWpnRld = 0;         //Main weapon reload timer
-plyrCurMainWpn = gun_gatling;         //Current main weapon
-
-plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
-plyrFXTrailLen = 10;         //Number of sections to the player wingtip trails
-for (i=0; i<plyrFXTrailLen*2; i+=1)
-{
-    plyrFXTrail[i, 0] = 0;
-    plyrFXTrail[i, 1] = 0;
-}
-
-
-
-
-
-
-#define enemyInit
-//This script intializes the enemies
-//----------------------------------
-
-//Note: Enemy actions are controlled by finite state machines
-//Enemies also have a 'type' which governs the FSMs
-
-//High-level control varaibles
-state = 0;      //The current state of the enemy
-
-
-//Low level control varaibles
-xSpd = 0;       //X movement speed
-ySpd = 0;       //Y movement speed
-reload = 0;     //Reload timer
-
-
-//Set varaibles dependent on the enemy type
-switch (type)
-{
-    case enemy_bomb:
-        hlth = 1;   //Bomber can take only a single hit
-        xSpd = 10;
-        break;
-
-
-}
-
 #define particleHandler
 //Here we manage the day-to-day lives of the particles
 //----------------------------------------------------
@@ -376,7 +410,16 @@ if (a > 0)
         a.xSpd = 21;
         ySpd = random(200)/10-10;
         xSpd = 21;
-        //TODO Create sparks and shit
+        
+        //Create sparks and shit
+        z = instance_create(x,y,FXsparks);
+        z.numSparks = random(5)+5;
+        z.initYSpeed = 5;
+        z.offsetY = 2.5;
+        z.offsetX = -10;
+        z.acceleration = 0.7;
+        
+        //TODO also create a sprite spark or something
     }
 }
 
@@ -416,17 +459,6 @@ if (numImpacts < 0)
 xSpd += xAcc;
 ySpd += yAcc;
 
-#define particleInit
-//Script called by particles upon creation to initialize their variables
-xSpd = 0;
-ySpd = 0;
-xAcc = 0;
-yAcc = 0;
-dmg = 0;        //Damage the particle inflicts
-weap = 0;       //Whether or not the particle is a weapon (0 is not, 1 is player, 2 is enemy)
-numImpacts = 1;     //How many impacts the particle can sustain before dying
-type = gun_gatling;     //Type of weapon (only used if the particle is a weapon)
-
 #define enemyHandler
 //This script handles all of the enemy actions
 
@@ -451,4 +483,53 @@ y += ySpd;
 
 //Destroy all enemies that leave the screen on the left side
 if (x < 0) {instance_destroy()};
+
+#define sparkFX
+//Manage sparks
+
+//Set up the particles if not done already
+if (!init)
+{
+    for (a=0; a<numSparks; a+=1)
+    {
+        FX[a,0] = x + random(spreadX) - spreadX/2   //Set X coordinate
+        FX[a,1] = y + random(spreadY) - spreadY/2   //Set Y coordinate
+        FX[a,2] = random(initXSpeed) - offsetX                  //Set X speed
+        FX[a,3] = random(initYSpeed) - offsetY                  //Set Y speed
+        FX[a,4] = lifetime               //Set life
+    }
+    init = true;        //System initialised, only perform once
+}
+
+//We kill the system if we make it all the way through the next code block without drawing a single particle
+alive = false;
+
+//Process and draw all particles
+for (a=0; a<numSparks; a+=1)
+{
+    //Add speeds to positions
+    FX[a,0] += FX[a,2]
+    FX[a,1] += FX[a,3]
+    
+    //Decelerate/accelerate the particles
+    FX[a,2] = FX[a,2]*acceleration      //X coordinate is a straight multiplier
+    FX[a,3] = FX[a,3]*(acceleration + (1-acceleration)*(1- min(max(abs(FX[a,3])-3,0),1))) + 0.4   //Y coordinate accel fades past a speed
+    
+    if (abs(FX[a,2]) < 0.1 && abs(FX[a,2]) < 3)
+    {
+        FX[a,2] = 0;  //Rounding so the system doesnt keep doing stupid math
+        FX[a,4] -= 1;       //Subtract from the lifetime
+    }
+    
+    
+    //Draw all particles with lifetime left
+    if (FX[a,4] > 0)
+    {
+        draw_point_color(FX[a,0], FX[a,1], make_color_hsv(color_get_hue(sparkColor), color_get_saturation(sparkColor), 255*(FX[a,4]/lifetime)));  //Draw the spark
+        alive = true;       //Dont kill the system, some particles are still alive
+    }
+}
+
+//Kill the system if nothing left alive
+if (!alive) {instance_destroy()};
 
