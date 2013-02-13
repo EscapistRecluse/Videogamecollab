@@ -23,9 +23,22 @@ keyLog[5] = vk_lshift;      //The left shift button
 //Declare game variables
 yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
 xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
-xGameMoveSpd = 40;       //Game horizontal cruise speed in pixels per second
+xGameMoveSpd = 15;       //Game horizontal cruise speed in pixels per second
 experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
 mainWpnEvol = 0         //How evolved the main weapon is
+
+maxAtmosPtcls = 400;    //Maximum number of particles the atmosphere renders
+atmosZone = sparkle;    //Default to sparkle zone
+
+//Initialize the atmosphere
+for (a=0; a<maxAtmosPtcls; a+=1)
+{
+    atmos[a,4] = exp(random(30)/10);                     //Create a random depth, but keep the distribution exponentially to the foreground
+    atmos[a,0] = random(window_get_width()*atmos[a,4])-window_get_width()/2*atmos[a,4];    //X pos
+    atmos[a,1] = random(atmos[a,4]*window_get_height())-atmos[a,4]*window_get_height()/2;   //Y pos
+    atmos[a,2] = random(720);                             //Drift timer
+    atmos[a,3] = random(550);                  //Visibility timer
+}
 
 
 //Declare player Variables
@@ -75,7 +88,7 @@ switch (type)
 {
     case enemy_bomb:
         hlth = 1;   //Bomber can take only a single hit
-        xSpd = 10;
+        xSpd = -10;
         break;
 
 
@@ -289,6 +302,9 @@ if (mouse_check_button_released(mb_left))
     instance_create(mouse_x,mouse_y,FXsparks);
 }
 
+//Call the atmosphere manager script
+atmosphereHandler();
+
 #define playerHandler
 //This script is the master script for player control
 //===================================================
@@ -466,9 +482,9 @@ switch (type)
 {
     case enemy_bomb:        //This enemy will just be a slowly floating bomb that explodes shortly after being hit or coming near the player
         //Decelerate the bomb
-        if (xSpd < gameController.xGameMoveSpd*0.85)
+        if (xSpd < gameController.xGameMoveSpd*0.65)
         {
-            xSpd += (gameController.xGameMoveSpd - xSpd)*0.1;
+            xSpd += (gameController.xGameMoveSpd - xSpd)*0.07;
         }
         
         //Drift the bomb toward the player with experience
@@ -532,4 +548,60 @@ for (a=0; a<numSparks; a+=1)
 
 //Kill the system if nothing left alive
 if (!alive) {instance_destroy()};
+
+#define atmosphereHandler
+//The atmosphere handler is a FSM that manages different onscreen particles based on different zones
+
+//Manage the particles
+for (a=0; a<maxAtmosPtcls; a+=1)
+{
+    switch (atmosZone)
+    {
+        case sparkle:
+            //Manage positions
+            atmos[a,0] -= xGameMoveSpd*0.7;     //The particles are nearly stationary in the game world
+            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5;        //Slowly drifts downward
+            
+            //Manage downward drift timer
+            atmos[a,2] = (atmos[a,2]+3) mod 720         //Remember that this number is in degrees
+            
+            //Manage visibility timer
+            atmos[a,3] = (atmos[a,3]+2.5) mod 550        //Also in degrees
+
+        break;
+
+
+
+    }
+    
+    //Manage offscreen particles
+    if (atmos[a,0] < atmos[a,4]*(0-window_get_width()/2))   //Leaves left X
+    {
+        atmos[a,4] = exp(random(30)/10);
+        atmos[a,0] = (window_get_width()/2 + random(xGameMoveSpd))*atmos[a,4];
+        atmos[a,1] = random(atmos[a,4]*window_get_height())-atmos[a,4]*window_get_height()/2;
+        atmos[a,2] = random(720);
+        atmos[a,3] = random(550);
+    }
+    
+    if (atmos[a,1] > atmos[a,4]*(window_get_height()/2))    //Leaves bottom y
+    {
+        atmos[a,4] = exp(random(30)/10);
+        atmos[a,0] = random(atmos[a,4]*window_get_width());
+        atmos[a,1] = atmos[a,4]*(0-window_get_height()/2);
+        atmos[a,2] = random(720);
+        atmos[a,3] = random(550);
+    }
+}
+
+//TODO: eventually this will be set up for smooth fading from zone to zone
+
+#define drawAtmos
+//Draw the atmosphere
+for (a=0; a<maxAtmosPtcls; a+=1)
+{
+    draw_set_blend_mode(bm_add);
+    draw_sprite_ext(atmosSprites, atmosZone, atmos[a,0]/atmos[a,4] + window_get_width()/2, atmos[a,1]/atmos[a,4] + window_get_height()/2, max(1/atmos[a,4],0.2), max(1/atmos[a,4], 0.2), 0, c_white, sin(degtorad(min(atmos[a,3], 180))));
+    draw_set_blend_mode(bm_normal);
+}
 
