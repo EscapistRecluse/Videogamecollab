@@ -1,4 +1,5 @@
 Horizontal scrolling shmup
+==========================
 
 Stages have environmental obstacles and hazards that the player can use for cover.  Stages also occasionally pause for small arena-esque fights.
 
@@ -18,3 +19,23 @@ weapon 2- slow grenade-launcher type weapon. Has a slow rate of fire but a massi
 weapon 3- Penetrating laser beam. 
 weapon 4- Laser-ring. Fires small laser rings that bounce off of walls.  Can be charged.   longer charge= bigger/more powerful shot.  Max charge creates giant ring that splits in many smaller rings. These shots can be shot by enemy shots(how many shots they can take depends on the strength of the shot)
 weapon 5- 
+
+TODO - NO/NEARLY NO COMPLETION:
+-Much of the artwork
+-Level generation system
+-Enemy design
+-Player secondary weapons
+-Additive / lighting effects
+
+TODO - PARTIAL COMPLETION:
+-'Particle' system
+-->Weapon system subset of particle system
+-Menu handling
+-'Game modifiers' (experience system, etc)
+-Player damage
+-Gui
+-Player main weapons
+-Various effects
+
+COMPLETED:
+-Movement system
