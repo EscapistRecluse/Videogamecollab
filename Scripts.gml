@@ -24,6 +24,7 @@ keyLog[5] = vk_lshift;      //The left shift button
 yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
 xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
 xGameMoveSpd = 15;       //Game horizontal cruise speed in pixels per second
+yGameMoveSpd = 0;       //Game vertical cruise speed in pixels per second
 experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
 mainWpnEvol = 0         //How evolved the main weapon is
 
@@ -51,7 +52,7 @@ plyrMaxSpdY = 6;        //Max speed in Y direction, in pixels per second
 plyrAcc = 3;    //Player Acceleration, in pixels per second squared
 plyrMainWeapon = 0;     //Default main weapon, chaingun
 plyrMainWpnRld = 0;         //Main weapon reload timer
-plyrCurMainWpn = gun_gatling;         //Current main weapon
+plyrCurMainWpn = gun_beam;         //Current main weapon
 
 plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
 plyrFXTrailLen = 10;         //Number of sections to the player wingtip trails
@@ -104,6 +105,7 @@ dmg = 0;        //Damage the particle inflicts
 weap = 0;       //Whether or not the particle is a weapon (0 is not, 1 is player, 2 is enemy)
 numImpacts = 1;     //How many impacts the particle can sustain before dying
 type = gun_gatling;     //Type of weapon (only used if the particle is a weapon)
+target = -1;    //Only used for beams to indicate what object the beam hit
 
 #define sparkFXInit
 //Initialize the sparks FX
@@ -223,7 +225,7 @@ a = plyrX/window_get_width()*6 - 3
 b = plyrY/window_get_height()*6 - 3
 
 //Draw the player craft rear wing
-draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b);
+draw_sprite_ext(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.95, 0.95, 0, make_color_hsv(0, 0, 200), 1);
 draw_set_blend_mode(bm_add);    //Set the blend mode
 if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
 if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
@@ -272,7 +274,7 @@ for (a = 0; a < 2; a+=1)
     {
         //Move all trails back one segment
         plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd;
-        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1];
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd;
     }
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
@@ -362,36 +364,59 @@ a = plyrX/window_get_width()*6 - 3
 b = plyrY/window_get_height()*6 - 3
 
 //Shoot main weapon
-if (keyboard_check_direct(keyLog[4]) && plyrMainWpnRld < 1) then
+if (keyboard_check_direct(keyLog[4])) then
 {
-    //Create the bullet particles (one per wing)
-    aa = instance_create(plyrX-3 - a, plyrY-plyrSpdY/3-2 - b, particle);
-    ab = instance_create(plyrX+3 + a, plyrY+plyrSpdY/3-2 + b, particle);
-    aa.depth = 10;      //Set the depth so that the bullet appears behind the ship
-    
-    switch (plyrCurMainWpn)
+    if (plyrMainWpnRld < 1)
     {
-        case gun_gatling:   //Turn the bullets into gatling gun bullets
-        aa.xSpd = 19 + plyrSpdX*0.6;
-        ab.xSpd = 19 + plyrSpdX*0.6;
-        aa.yAcc = 0.05;     //Give the bullets slight gravity
-        ab.yAcc = 0.05;
-        aa.dmg = 1;
-        ab.dmg = 1;
-        aa.weap = 1;        //Classify as player weapons
-        ab.weap = 1;
-        aa.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;  //Bullet penetration upgrades at level 3 & 5, then every 4th level after that
-        ab.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;
+        //Create the bullet particles (one per wing)
+        aa = instance_create(plyrX-3 - a, plyrY-plyrSpdY/3-2 - b, particle);
+        ab = instance_create(plyrX+3 + a, plyrY+plyrSpdY/3-2 + b, particle);
+        aa.depth = 10;      //Set the depth so that the bullet appears behind the ship
+        
+        switch (plyrCurMainWpn)
+        {
+            case gun_gatling:   //Turn the bullets into gatling gun bullets
+                aa.xSpd = 19 + plyrSpdX*0.6;
+                ab.xSpd = 19 + plyrSpdX*0.6;
+                aa.yAcc = 0.05;     //Give the bullets slight gravity
+                ab.yAcc = 0.05;
+                aa.dmg = 1;         //TODO set these values
+                ab.dmg = 1;
+                aa.weap = 1;        //Classify as player weapons
+                ab.weap = 1;
+                aa.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;  //Bullet penetration upgrades at level 3 & 5, then every 4th level after that
+                ab.numImpacts = 1 + min(mainWpnEvol div 2, 1) + mainWpnEvol div 4;
+                aa.type = gun_gatling; //Player bullets default to gatling; this is here for clarity
+                ab_type = gun_gatling;
+                //Set the reload timer
+                plyrMainWpnRld = 5;
+                break;
+            case gun_beam:      //Create beam weapon
+                aa.dmg = 1;         //TODO set these values
+                ab.dmg = 1;
+                aa.weap = 1;        //Classify as player weapons
+                ab.weap = 1;
+                aa.type = gun_beam; //We are shooting beams here
+                ab.type = gun_beam;
+                plyrMainWpnRld = 0; //Beams continuously fire if button held down
+                with (aa) {beamControl()};   //Parse out the instant hit beam
+                with (ab) {beamControl()};
+                break;
+        }
+    } else {
+        //The beam weapon prepares to fire in the first few frames the fire key is pressed
+        if (plyrCurMainWpn = gun_beam) {plyrMainWpnRld -= 1}
     }
-    
-    //Set the reload timer
-    plyrMainWpnRld = 5;
-
-
+} else {
+    //Do things when the player is not pressing the fire key
+    if (plyrCurMainWpn = gun_beam)
+    {
+        plyrMainWpnRld = 9;     //Reset the 9 frame delay timer for the beam
+    } else {
+        //Reduce shooting timer
+        plyrMainWpnRld -= 1
+    }
 }
-
-//Reduce shooting timer
-plyrMainWpnRld -= 1
 
 
 
@@ -552,6 +577,8 @@ if (!alive) {instance_destroy()};
 #define atmosphereHandler
 //The atmosphere handler is a FSM that manages different onscreen particles based on different zones
 
+//Please note that particle generation will not behave correctly if the game is moving diagonally.
+
 //Manage the particles
 for (a=0; a<maxAtmosPtcls; a+=1)
 {
@@ -560,7 +587,7 @@ for (a=0; a<maxAtmosPtcls; a+=1)
         case sparkle:
             //Manage positions
             atmos[a,0] -= xGameMoveSpd*0.7;     //The particles are nearly stationary in the game world
-            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5;        //Slowly drifts downward
+            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5-yGameMoveSpd*0.7;        //Slowly drifts downward
             
             //Manage downward drift timer
             atmos[a,2] = (atmos[a,2]+3) mod 720         //Remember that this number is in degrees
@@ -604,4 +631,72 @@ for (a=0; a<maxAtmosPtcls; a+=1)
     draw_sprite_ext(atmosSprites, atmosZone, atmos[a,0]/atmos[a,4] + window_get_width()/2, atmos[a,1]/atmos[a,4] + window_get_height()/2, max(1/atmos[a,4],0.2), max(1/atmos[a,4], 0.2), 0, c_white, sin(degtorad(min(atmos[a,3], 180))));
     draw_set_blend_mode(bm_normal);
 }
+
+#define drawParticle
+//This script draws the particles
+//===============================
+
+//Since the player particles are procedurally generated, we default to drawing sprites if not a player particle
+if (weap = 1)
+{
+    //Draw player bullets
+    switch (type)
+    {
+        case gun_gatling:
+            draw_self();    //Keep it simple for now
+            break;
+            
+        case gun_beam:      //Draw fancy beam weapon
+            //Draw halo first
+            draw_set_blend_mode(bm_add);
+            draw_set_color($101010);
+            draw_line_width(x, y, x+bWidth, y, 8)
+            draw_set_color($777700);
+            draw_line_width(x, y, x+bWidth, y, 3)
+            draw_set_blend_mode(bm_normal);
+            draw_set_color(c_fuchsia);
+            draw_line_width(x, y, x+bWidth, y, 1)
+            instance_destroy();     //Beams only live one frame
+            break
+    }
+
+} else {
+    //Draw all non-player bullets as sprites
+    draw_self();
+}
+
+
+#define beamControl
+//This script parses beams until they hit things
+
+parseChunkSize = 15;    //How many pixels to parse at once
+done = false            //Variable to keep track of when we are done
+i = x;                  //Temp variables for the parsing
+j = y;
+
+while (!done)
+{
+    a = collision_line(i,j,i+parseChunkSize,j,enemy,false,false)
+    if (a > 0)
+    {
+        //We hit something
+        done = true
+        target = a;     //Tell who the beam hit
+        
+        //Walk the beam into the target
+        while (collision_point(i,j,enemy, false,false) < 0) {i += 2}
+        
+    
+    }else{
+        //We hit nothing
+        i += parseChunkSize;
+        
+        //If off screen, we are done
+        if(abs(i-window_get_width()/2) > window_get_width()/2 or abs(j-window_get_height()/2) > window_get_height()/2)
+        {done = true}
+    }
+}
+
+//Set the final beam width
+bWidth = i-x;
 
