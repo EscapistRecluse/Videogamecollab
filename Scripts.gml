@@ -229,7 +229,9 @@ draw_sprite_ext(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1
 draw_set_blend_mode(bm_add);    //Set the blend mode
 if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
 if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
 
 //Draw the player craft body
 draw_sprite(plyrShipBase,-1,plyrX,plyrY);
@@ -239,7 +241,9 @@ draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b
 draw_set_blend_mode(bm_add);    //Set the blend mode
 if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
 if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
 
 //Manage the timer for the beacon FX
 if plyrFXBeaconTimer = 0 then
@@ -653,6 +657,8 @@ if (weap = 1)
             draw_line_width(x, y, x+bWidth, y, 8)
             draw_set_color($777700);
             draw_line_width(x, y, x+bWidth, y, 3)
+            //Sprinkle sparklies on it :D
+            for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(a*4+x +random(4)-2,y+random(8)-4)}
             draw_set_blend_mode(bm_normal);
             draw_set_color(c_fuchsia);
             draw_line_width(x, y, x+bWidth, y, 1)
