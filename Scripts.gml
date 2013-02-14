@@ -45,6 +45,8 @@ for (a=0; a<maxAtmosPtcls; a+=1)
 //Declare player Variables
 plyrX = 0;   //Player X position
 plyrY = 0;   //Player Y position
+plyrLastX = 0;          //Last X position the player was at, used to find net changes in movement
+plyrLastY = 0;          //Last Y position the player was at
 plyrSpdX = 0;        //Speed in X direction, in pixels per second
 plyrSpdY = 0;        //Speed in Y direction, in pixels per second
 plyrMaxSpdX = 7.5;        //Max speed in X direction, in pixels per second
@@ -277,8 +279,8 @@ for (a = 0; a < 2; a+=1)
     for (b = 0; b < plyrFXTrailLen-1; b+=1)
     {
         //Move all trails back one segment
-        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd;
-        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd;
+        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
     }
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
@@ -353,8 +355,10 @@ if (keyboard_check(keyLog[2]) ^^ keyboard_check(keyLog[3]))
     }
 };
 
-//Add the speed values to the X and Y coordinates
+//Add the speed values to the X and Y coordinates, keep track of player previous position
 //Also use Max/Min to keep the player within game borders
+plyrLastX = plyrX;
+plyrLastY = plyrY;
 plyrX = max(min(plyrX + plyrSpdX, window_get_region_width()-xBorders), xBorders);
 plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders);
 
