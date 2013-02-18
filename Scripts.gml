@@ -9,15 +9,15 @@ room_speed = 60;
 
 //Declare the player control array. This array will be used to keep track of the player
 //keyboard key configuration. We do this so that the player may reconfigure his keys in game.
-keyLog[5] = -1;     //Declare an array with spaces for 6 buttons
+keyLog[6] = -1;     //Declare an array with spaces for 6 buttons
 
 //Set the keyboard presets
-keyLog[0] = vk_left;
+keyLog[0] = vk_left;        //Movement keys
 keyLog[1] = vk_right;
 keyLog[2] = vk_up;
 keyLog[3] = vk_down;
-keyLog[4] = vk_lcontrol;    //The left control button
-keyLog[5] = vk_lshift;      //The left shift button
+keyLog[4] = ord('X');       //The Fire Main button
+keyLog[5] = ord('Z');       //The Hold Aim button
 
 
 //Declare game variables
@@ -55,6 +55,9 @@ plyrAcc = 3;    //Player Acceleration, in pixels per second squared
 plyrMainWeapon = 0;     //Default main weapon, chaingun
 plyrMainWpnRld = 0;         //Main weapon reload timer
 plyrCurMainWpn = gun_beam;         //Current main weapon
+plyrAim[2] = 0;            //Aiming for the player, either a direction in radians or a vector, depending on the weapon (for now, only dir is set)
+pAimBound = 18;             //Degrees away from 0 (straight ahead) the player is allowed to aim his weapon
+pAimSpd = 2;                //Speed the player aims his weapon in degrees/frame
 
 plyrFXBeaconTimer = 0;      //The timer for the flashy light beacon things
 plyrFXTrailLen = 10;         //Number of sections to the player wingtip trails
@@ -92,6 +95,7 @@ switch (type)
     case enemy_bomb:
         hlth = 1;   //Bomber can take only a single hit
         xSpd = -10;
+        explTimer = 20;     //How many frames till explosion
         break;
 
 
@@ -330,11 +334,9 @@ if (keyboard_check(keyLog[0]) ^^ keyboard_check(keyLog[1]))     //Check that the
     //since this helps keep your code concise with fewer lines. Fewer lines = runs faster.
 } else {
     //Here, they are either holding neither key or both keys
-    
     if ( abs(plyrSpdX) < plyrAcc)
     {
-        //If the player speed is less than the acceleration value from zero, we just set to zero to avoid overshooting zero
-        //(the craft will vibrate back and forth when it should be sitting still)
+        //Set to zero to avoid overshoot
         plyrSpdX = 0;
     } else {
         if (plyrSpdX > 0) {plyrSpdX -= plyrAcc} else {plyrSpdX += plyrAcc}
@@ -371,6 +373,24 @@ plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders
 a = plyrX/window_get_width()*6 - 3
 b = plyrY/window_get_height()*6 - 3
 
+//Handle player aiming
+if (!keyboard_check_direct(keyLog[5]))
+{
+    //For now, all that is set is a direction
+    if (plyrSpdY < 0)
+    {
+        plyrAim[0] = radtodeg(plyrAim[0])   //Convert to degrees
+        plyrAim[0] = max(plyrAim[0] - pAimSpd, -1*pAimBound)
+        plyrAim[0] = degtorad(plyrAim[0])   //Convert back to radians
+    } else {
+    if (plyrSpdY > 0)
+    {
+        plyrAim[0] = radtodeg(plyrAim[0])   //Convert to degrees
+        plyrAim[0] = min(plyrAim[0] + pAimSpd, pAimBound)
+        plyrAim[0] = degtorad(plyrAim[0])   //Convert back to radians
+    } else {plyrAim[0] = plyrAim[0]*0.5}
+    }
+}
 //Shoot main weapon
 if (keyboard_check_direct(keyLog[4])) then
 {
@@ -400,20 +420,23 @@ if (keyboard_check_direct(keyLog[4])) then
                 plyrMainWpnRld = 5;
                 break;
             case gun_beam:      //Create beam weapon
-                aa.dmg = 1;         //TODO set these values
-                ab.dmg = 1;
-                aa.weap = 1;        //Classify as player weapons
+                aa.dmg = 0.3;           //TODO set these values
+                ab.dmg = 0.3;
+                aa.weap = 1;            //Classify as player weapons
                 ab.weap = 1;
-                aa.type = gun_beam; //We are shooting beams here
+                aa.type = gun_beam;     //We are shooting beams here
                 ab.type = gun_beam;
-                plyrMainWpnRld = 0; //Beams continuously fire if button held down
-                with (aa) {beamControl()};   //Parse out the instant hit beam
-                with (ab) {beamControl()};
+                plyrMainWpnRld = 0;     //Beams continuously fire if button held down
+                aa.dir = plyrAim[0];        //Set the direction to the player aim value
+                ab.dir = plyrAim[0];        //Set the direction to the player aim value
+                with (aa) {beamControl(true)};      //Parse out the instant hit beam
+                with (ab) {beamControl(true)};      //Pass true for the argument so the beam deals damage
                 break;
         }
     } else {
         //The beam weapon prepares to fire in the first few frames the fire key is pressed
-        if (plyrCurMainWpn = gun_beam) {plyrMainWpnRld -= 1}
+        //All other weapons function normally
+        plyrMainWpnRld -= 1
     }
 } else {
     //Do things when the player is not pressing the fire key
@@ -521,7 +544,7 @@ switch (type)
         }
         
         //Drift the bomb toward the player with experience
-        ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.013
+        ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.010
         
         
 }
@@ -532,6 +555,34 @@ y += ySpd;
 
 //Destroy all enemies that leave the screen on the left side
 if (x < 0) {instance_destroy()};
+
+//How to handle enemy destruction
+if (hlth < 0)
+{
+    switch(type)
+    {
+    case enemy_bomb:
+        explTimer -= 1; //Subtract from the explosion timer
+        if(explTimer < 0)
+        {
+            //Create the damage field
+            
+            //Create the FX
+            a = instance_create(x,y,FXsparks);
+            a.initXSpeed = 55;
+            a.initYSpeed = 55;
+            a.offsetX = gameController.xGameMoveSpd*0.65 + 27;
+            a.lifetime = 3;
+            
+            
+        
+            //Destroy the bomb
+            instance_destroy();
+        }
+        break;
+
+    }
+}
 
 #define sparkFX
 //Manage sparks
@@ -658,14 +709,14 @@ if (weap = 1)
             //Draw halo first
             draw_set_blend_mode(bm_add);
             draw_set_color($101010);
-            draw_line_width(x, y, x+bWidth, y, 8)
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 8)
             draw_set_color($777700);
-            draw_line_width(x, y, x+bWidth, y, 3)
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 3)
             //Sprinkle sparklies on it :D
-            for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(a*4+x +random(4)-2,y+random(8)-4)}
+            for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(x+cos(dir)*a*4 +random(4)-2,y+sin(dir)*a*4+random(8)-4)}
             draw_set_blend_mode(bm_normal);
             draw_set_color(c_fuchsia);
-            draw_line_width(x, y, x+bWidth, y, 1)
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 1)
             instance_destroy();     //Beams only live one frame
             break
     }
@@ -686,20 +737,32 @@ j = y;
 
 while (!done)
 {
-    a = collision_line(i,j,i+parseChunkSize,j,enemy,false,false)
+    a = collision_line(i,j,i+cos(dir)*parseChunkSize,j+sin(dir)*parseChunkSize,enemy,false,false)
     if (a > 0)
     {
         //We hit something
         done = true
         target = a;     //Tell who the beam hit
         
-        //Walk the beam into the target
-        while (collision_point(i,j,enemy, false,false) < 0) {i += 2}
+        //Run the beam forward
+        i += cos(dir)*parseChunkSize;
+        j += sin(dir)*parseChunkSize;
+        
+        //Now walk the beam out of the target
+        while (!collision_point(i,j,enemy, false,false) < 0)
+        {
+            i -= cos(dir)*2;
+            j -= sin(dir)*2;
+        }
+        
+        //Do the damage if specified
+        if (argument0) {a.hlth -= dmg;}
         
     
     }else{
         //We hit nothing
-        i += parseChunkSize;
+        i += cos(dir)*parseChunkSize;
+        j += sin(dir)*parseChunkSize;
         
         //If off screen, we are done
         if(abs(i-window_get_width()/2) > window_get_width()/2 or abs(j-window_get_height()/2) > window_get_height()/2)
@@ -708,5 +771,5 @@ while (!done)
 }
 
 //Set the final beam width
-bWidth = i-x;
+bWidth = point_distance(x,y,i,j);   //Can make this run faster by simply adding all distance traveled in the code ahead
 
