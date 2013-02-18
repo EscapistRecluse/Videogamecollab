@@ -67,6 +67,9 @@ for (i=0; i<plyrFXTrailLen*2; i+=1)
     plyrFXTrail[i, 1] = 0;
 }
 
+//Create the player's hitbox
+instance_create(0,0,plyrShield);
+
 
 
 
@@ -112,6 +115,7 @@ weap = 0;       //Whether or not the particle is a weapon (0 is not, 1 is player
 numImpacts = 1;     //How many impacts the particle can sustain before dying
 type = gun_gatling;     //Type of weapon (only used if the particle is a weapon)
 target = -1;    //Only used for beams to indicate what object the beam hit
+coll = true;    //Whether or not the particle can collide with itself or other particles
 
 #define sparkFXInit
 //Initialize the sparks FX
@@ -314,6 +318,12 @@ if (mouse_check_button_released(mb_left))
     instance_create(mouse_x,mouse_y,FXsparks);
 }
 
+//Hack to make the hitbox visible
+if (keyboard_check_pressed(vk_backspace))
+{
+    plyrShield.visible = 1-plyrShield.visible
+}
+
 //Call the atmosphere manager script
 atmosphereHandler();
 
@@ -363,6 +373,10 @@ plyrLastX = plyrX;
 plyrLastY = plyrY;
 plyrX = max(min(plyrX + plyrSpdX, window_get_region_width()-xBorders), xBorders);
 plyrY = max(min(plyrY + plyrSpdY, window_get_region_height()-yBorders), yBorders);
+
+//Position the player hitbox object
+plyrShield.x = plyrX;
+plyrShield.y = plyrY;
 
 
 
@@ -473,30 +487,33 @@ if (abs(window_get_width()/2 - x) > window_get_width()/2) then {instance_destroy
 if (abs(window_get_height()/2 - y) > window_get_height()/2) then {instance_destroy()}
 
 //Manage collisions between particles
-a = collision_line(x, y, x+xSpd, y+ySpd, particle, false, true)
-if (a > 0)
+if (coll)   //Only check if the check collisions flag is set
 {
-    if (depth = a.depth)    //Have to do nested ifs like this because game maker is gay
+    a = collision_line(x, y, x+xSpd, y+ySpd, particle, false, true)
+    if (a > 0)
     {
-        a.ySpd = random(200)/10-10;
-        a.xSpd = 21;
-        ySpd = random(200)/10-10;
-        xSpd = 21;
-        
-        //Create sparks and shit
-        z = instance_create(x,y,FXsparks);
-        z.numSparks = random(5)+5;
-        z.initYSpeed = 5;
-        z.offsetY = 2.5;
-        z.offsetX = -10;
-        z.acceleration = 0.7;
-        
-        //TODO also create a sprite spark or something
+        if (depth = a.depth)    //Have to do nested ifs like this because game maker is gay
+        {
+            a.ySpd = random(200)/10-10;
+            a.xSpd = 21;
+            ySpd = random(200)/10-10;
+            xSpd = 21;
+            
+            //Create sparks and shit
+            z = instance_create(x,y,FXsparks);
+            z.numSparks = random(5)+5;
+            z.initYSpeed = 5;
+            z.offsetY = 2.5;
+            z.offsetX = -10;
+            z.acceleration = 0.7;
+            
+            //TODO also create a sprite spark or something
+        }
     }
 }
 
 //Manage weapon collisions
-if (weap > 0)
+if (weap = 1)
 {
     switch (type)       //'type' variable only used for weapons
     {
@@ -508,6 +525,19 @@ if (weap > 0)
             numImpacts -= 1;    //Subtract one from the number of impacts remaining
         }
         break;
+    }
+} else {
+    if (weap = 2)
+    {
+        switch (type)       //'type' variable only used for weapons
+        {
+        case enemWeap_SmallOrb:
+            a = collision_line(x, y, x+xSpd, y+ySpd, plyrShield, false, false);
+            if (a>0) {instance_destroy()}
+            
+            //Currently, this particle does not do damage
+            break;
+        }
     }
 }
 
@@ -566,6 +596,24 @@ if (hlth < 0)
         if(explTimer < 0)
         {
             //Create the damage field
+            s = 15 + gameController.experience*0.02     //Variable that defines the size of the explosion
+                //TODO
+            
+            //Create the lingering particles
+            for(a=0; a<gameController.experience*0.01+4; a+=1)
+            {
+                b = instance_create(x,y,particle);
+                b.x = b.x-s/2+random(s)             //Randomize their position inside of the explosion
+                b.y = b.y-s/2+random(s)
+                b.xSpd = 0 - random(10)*0.1;
+                b.ySpd = 0;
+                b.xAcc = -0.01 - random(10)*0.001;  //No deceleration
+                b.yAcc = 0;             //No deceleration
+                b.weap = 2;             //This bullet is an enemy weapon
+                b.type = enemWeap_SmallOrb;     //Create small orbs
+                b.col = c_white;                //Create small white orbs
+                b.coll = false;         //This particle does NOT collide with other particles
+            }
             
             //Create the FX
             a = instance_create(x,y,FXsparks);
@@ -712,18 +760,34 @@ if (weap = 1)
             draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 8)
             draw_set_color($777700);
             draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 3)
-            //Sprinkle sparklies on it :D
+            //Sprinkle sparklies on it
             for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(x+cos(dir)*a*4 +random(4)-2,y+sin(dir)*a*4+random(8)-4)}
             draw_set_blend_mode(bm_normal);
             draw_set_color(c_fuchsia);
             draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 1)
             instance_destroy();     //Beams only live one frame
-            break
+            break;
     }
 
 } else {
-    //Draw all non-player bullets as sprites
-    draw_self();
+    if (weap = 2) 
+    {
+        //Draw enemy weapons
+        switch (type)
+        {
+            //Draw the small orb
+            case enemWeap_SmallOrb:
+                draw_set_blend_mode(bm_add);
+                draw_circle_color(x,y,5,make_color_hsv(color_get_hue(col),color_get_saturation(col),color_get_value(col)*0.5),c_black,false)
+                draw_set_blend_mode(bm_normal);
+                draw_circle_color(x,y,2,col,col,false)
+                
+        
+        }
+    } else {
+        //Draw all non-player bullets as sprites
+        draw_self();
+    }
 }
 
 
