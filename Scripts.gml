@@ -9,7 +9,7 @@ room_speed = 60;
 
 //Declare the player control array. This array will be used to keep track of the player
 //keyboard key configuration. We do this so that the player may reconfigure his keys in game.
-keyLog[6] = -1;     //Declare an array with spaces for 6 buttons
+keyLog[7] = -1;     //Declare an array with spaces for 6 buttons
 
 //Set the keyboard presets
 keyLog[0] = vk_left;        //Movement keys
@@ -18,6 +18,7 @@ keyLog[2] = vk_up;
 keyLog[3] = vk_down;
 keyLog[4] = ord('X');       //The Fire Main button
 keyLog[5] = ord('Z');       //The Hold Aim button
+keyLog[6] = ord('P');       //The pause button
 
 
 //Declare game variables
@@ -27,6 +28,8 @@ xGameMoveSpd = 15;       //Game horizontal cruise speed in pixels per second
 yGameMoveSpd = 0;       //Game vertical cruise speed in pixels per second
 experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
 mainWpnEvol = 0         //How evolved the main weapon is
+gamePause = 0;          //Whether or not the game is paused 0=play 1= pausing 2 = paused 3 = unpausing
+pauseFade = 0;          //Manages pause screen fade effects
 
 maxAtmosPtcls = 400;    //Maximum number of particles the atmosphere renders
 atmosZone = sparkle;    //Default to sparkle zone
@@ -135,6 +138,159 @@ offsetY = 10;           //Defines the speed bias up and down
 //Nonconfigurable variables
 init = false;           //Whether or not the particle system has already been created
 
+#define drawPlayer
+//This script draws the player
+//============================
+
+//NOTE: Since this is a drawing script, we need to draw in the proper order (or else the wrong things will be on top of the wrong stuff etc)
+
+//Define some temp variables for screen-based wing offsets
+a = plyrX/window_get_width()*6 - 3
+b = plyrY/window_get_height()*6 - 3
+
+//Draw the player craft rear wing
+draw_sprite_ext(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.95, 0.95, 0, make_color_hsv(0, 0, 200), 1);
+draw_set_blend_mode(bm_add);    //Set the blend mode
+if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
+if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
+draw_set_blend_mode(bm_normal);    //Reset the blend mode
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
+
+//Draw the player craft body
+draw_sprite(plyrShipBase,-1,plyrX,plyrY);
+
+//Draw the player craft front wing
+draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b);
+draw_set_blend_mode(bm_add);    //Set the blend mode
+if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
+if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
+draw_set_blend_mode(bm_normal);    //Reset the blend mode
+if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
+
+//Manage the timer for the beacon FX
+if plyrFXBeaconTimer = 0 then
+{
+      plyrFXBeaconTimer = 70
+} else {plyrFXBeaconTimer -= 1}
+
+//Draw the player wing vortices
+for (a = 0; a < 2; a+=1)
+{
+    z = make_color_hsv(0, 0, 150+a*50)  //Set the color for the wingtip trail
+    h = (plyrFXTrailLen)*a            //Shortcut varaible, used to store the offset in the array for the second tail
+    
+    for (b = 0; b < plyrFXTrailLen-1; b+=1)
+    {
+    
+        //This is a slightly complicated way of drawing tails, but the results are fantastic
+        draw_primitive_begin(pr_trianglestrip);
+        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1], z, (b/plyrFXTrailLen)*0.3);    //Top left vertex
+        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1], z, ((b+1)/plyrFXTrailLen)*0.3);    //Top right vertex
+        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1]+3, z, (b/plyrFXTrailLen)*0.3);    //Bottom left vertex
+        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1]+3, z, ((b+1)/plyrFXTrailLen)*0.3);    //Bottom right vertex
+        draw_primitive_end();
+    
+    }
+}
+
+//Update the player wing vortices
+for (a = 0; a < 2; a+=1)
+{
+    for (b = 0; b < plyrFXTrailLen-1; b+=1)
+    {
+        //Move all trails back one segment
+        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
+    }
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
+}
+
+
+//TODO: Animate the ship roll
+
+#define drawGame
+//This script calls the functions that draw the game
+
+
+//Draw the player
+drawPlayer()
+
+//Draw the atmosphere on top of the player
+drawAtmos()
+
+//Draw the pause screen overlay
+if(gamePause > 0)
+{
+    draw_set_blend_mode(bm_subtract);
+    draw_set_color(make_color_hsv(0,0,pauseFade*110));
+    draw_rectangle(0,0,window_get_width(), window_get_height(), false);
+    draw_set_blend_mode(bm_normal);
+}
+
+#define drawParticle
+//This script draws the particles
+//===============================
+
+//Since the player particles are procedurally generated, we default to drawing sprites if not a player particle
+if (weap = 1)
+{
+    //Draw player bullets
+    switch (type)
+    {
+        case gun_gatling:
+            draw_self();    //Keep it simple for now
+            break;
+            
+        case gun_beam:      //Draw fancy beam weapon
+            //Draw halo first
+            draw_set_blend_mode(bm_add);
+            draw_set_color($101010);
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 8)
+            draw_set_color($777700);
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 3)
+            //Sprinkle sparklies on it
+            for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(x+cos(dir)*a*4 +random(4)-2,y+sin(dir)*a*4+random(8)-4)}
+            draw_set_blend_mode(bm_normal);
+            draw_set_color(c_fuchsia);
+            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 1)
+            instance_destroy();     //Beams only live one frame
+            break;
+    }
+
+} else {
+    if (weap = 2) 
+    {
+        //Draw enemy weapons
+        switch (type)
+        {
+            //Draw the small orb
+            case enemWeap_SmallOrb:
+                draw_set_blend_mode(bm_add);
+                draw_circle_color(x,y,5,make_color_hsv(color_get_hue(col),color_get_saturation(col),color_get_value(col)*0.5),c_black,false)
+                draw_set_blend_mode(bm_normal);
+                draw_circle_color(x,y,2,col,col,false)
+                
+        
+        }
+    } else {
+        //Draw all non-player bullets as sprites
+        draw_self();
+    }
+}
+
+
+#define drawAtmos
+//Draw the atmosphere
+for (a=0; a<maxAtmosPtcls; a+=1)
+{
+    draw_set_blend_mode(bm_add);
+    draw_sprite_ext(atmosSprites, atmosZone, atmos[a,0]/atmos[a,4] + window_get_width()/2, atmos[a,1]/atmos[a,4] + window_get_height()/2, max(1/atmos[a,4],0.2), max(1/atmos[a,4], 0.2), 0, c_white, sin(degtorad(min(atmos[a,3], 180))));
+    draw_set_blend_mode(bm_normal);
+}
+
 #define menuHandler
 //Here we manage menu related things
 //==================================
@@ -224,108 +380,65 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
         }
 }
 
-#define drawPlayer
-//This script draws the player
-//============================
-
-//NOTE: Since this is a drawing script, we need to draw in the proper order (or else the wrong things will be on top of the wrong stuff etc)
-
-//Define some temp variables for screen-based wing offsets
-a = plyrX/window_get_width()*6 - 3
-b = plyrY/window_get_height()*6 - 3
-
-//Draw the player craft rear wing
-draw_sprite_ext(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.95, 0.95, 0, make_color_hsv(0, 0, 200), 1);
-draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
-if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
-if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
-draw_set_blend_mode(bm_normal);    //Reset the blend mode
-if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
-
-//Draw the player craft body
-draw_sprite(plyrShipBase,-1,plyrX,plyrY);
-
-//Draw the player craft front wing
-draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b);
-draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
-if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
-if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
-draw_set_blend_mode(bm_normal);    //Reset the blend mode
-if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
-
-//Manage the timer for the beacon FX
-if plyrFXBeaconTimer = 0 then
-{
-      plyrFXBeaconTimer = 70
-} else {plyrFXBeaconTimer -= 1}
-
-//Draw the player wing vortices
-for (a = 0; a < 2; a+=1)
-{
-    z = make_color_hsv(0, 0, 150+a*50)  //Set the color for the wingtip trail
-    h = (plyrFXTrailLen)*a            //Shortcut varaible, used to store the offset in the array for the second tail
-    
-    for (b = 0; b < plyrFXTrailLen-1; b+=1)
-    {
-    
-        //This is a slightly complicated way of drawing tails, but the results are fantastic
-        draw_primitive_begin(pr_trianglestrip);
-        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1], z, (b/plyrFXTrailLen)*0.3);    //Top left vertex
-        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1], z, ((b+1)/plyrFXTrailLen)*0.3);    //Top right vertex
-        draw_vertex_color(plyrFXTrail[b+h,0], plyrFXTrail[b+h,1]+3, z, (b/plyrFXTrailLen)*0.3);    //Bottom left vertex
-        draw_vertex_color(plyrFXTrail[b+h+1,0], plyrFXTrail[b+h+1,1]+3, z, ((b+1)/plyrFXTrailLen)*0.3);    //Bottom right vertex
-        draw_primitive_end();
-    
-    }
-}
-
-//Update the player wing vortices
-for (a = 0; a < 2; a+=1)
-{
-    for (b = 0; b < plyrFXTrailLen-1; b+=1)
-    {
-        //Move all trails back one segment
-        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
-        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
-    }
-    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
-    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
-}
-
-
-//TODO: Animate the ship roll
-
 #define gameController
-//Call the playerHandler Scripts
-playerHandler();
-
-//Hack to add enemies when the space bar is pressed
-if (keyboard_check(vk_space))
+//Manage game pausing
+//Odd modes are transition modes, this checks to make sure the state is even
+if (gamePause mod 2 == 0 && keyboard_check_pressed(keyLog[6]))
 {
-    aa = instance_create(window_get_width(), random(window_get_height()), enemy);
-    aa.type = enemy_bomb;
-    with (aa) enemyInit();
+    gamePause += 1; //Changes the pause mode to the next transition state
 }
 
-//Hack to add experience
-if (keyboard_check(ord('T'))) {experience += 100};
 
-//Hack to create spark FX when mouse clicked
-if (mouse_check_button_released(mb_left))
+
+
+if (gamePause > 0)
 {
-    instance_create(mouse_x,mouse_y,FXsparks);
-}
+    //Increase/decrease the fade multiplier
+    //TODO: rewrite in a single statement
+    if (pauseFade < 1 && gamePause == 1) {pauseFade += 0.2}
+    if (pauseFade > 0 && gamePause == 3) {pauseFade -= 0.2}
+    
+    //Finish transition state
+    if (pauseFade == 1 && gamePause == 1) {gamePause = 2}
+    if (pauseFade == 0 && gamePause == 3) {gamePause = 0}
+    
+    
+    //TODO Menu and options here
 
-//Hack to make the hitbox visible
-if (keyboard_check_pressed(vk_backspace))
-{
-    plyrShield.visible = 1-plyrShield.visible
-}
+} else{
+    //Call the playerHandler Scripts
+    playerHandler();
+    
+    //Call the enemyHandler scripts
+    with (enemy) {enemyHandler();}
+    
+    //Hack to add enemies when the space bar is pressed
+    if (keyboard_check(vk_space))
+    {
+        aa = instance_create(window_get_width(), random(window_get_height()), enemy);
+        aa.type = enemy_bomb;
+        with (aa) enemyInit();
+    }
+    
+    //Hack to add experience
+    if (keyboard_check(ord('T'))) {experience += 100};
+    
+    //Hack to create spark FX when mouse clicked
+    if (mouse_check_button_released(mb_left))
+    {
+        instance_create(mouse_x,mouse_y,FXsparks);
+    }
+    
+    //Hack to make the hitbox visible
+    if (keyboard_check_pressed(vk_backspace))
+    {
+        plyrShield.visible = 1-plyrShield.visible
+    }
+    
+    //Call the atmosphere manager script
+    atmosphereHandler();
 
-//Call the atmosphere manager script
-atmosphereHandler();
+}
 
 #define playerHandler
 //This script is the master script for player control
@@ -576,6 +689,15 @@ switch (type)
         //Drift the bomb toward the player with experience
         ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.010
         
+        //Explode the bomb if it gets close to the player
+        //We use the expanded math rather than the built-in function to avoid the sqrt() function, which is high processor intensive
+        if ((sqr(x-gameController.plyrX)+sqr(y-gameController.plyrY)) < sqr(32 + gameController.experience*0.02) && hlth > 0)
+        {
+            hlth = 0;
+            explTimer = explTimer*0.5;      //Timer gets cut in half for quick detonation
+            
+        }
+        
         
 }
 
@@ -587,7 +709,7 @@ y += ySpd;
 if (x < 0) {instance_destroy()};
 
 //How to handle enemy destruction
-if (hlth < 0)
+if (hlth <= 0)
 {
     switch(type)
     {
@@ -600,7 +722,7 @@ if (hlth < 0)
                 //TODO
             
             //Create the lingering particles
-            for(a=0; a<gameController.experience*0.01+4; a+=1)
+            for(a=0; a<gameController.experience*0.005+4; a+=1)
             {
                 b = instance_create(x,y,particle);
                 b.x = b.x-s/2+random(s)             //Randomize their position inside of the explosion
@@ -729,67 +851,6 @@ for (a=0; a<maxAtmosPtcls; a+=1)
 }
 
 //TODO: eventually this will be set up for smooth fading from zone to zone
-
-#define drawAtmos
-//Draw the atmosphere
-for (a=0; a<maxAtmosPtcls; a+=1)
-{
-    draw_set_blend_mode(bm_add);
-    draw_sprite_ext(atmosSprites, atmosZone, atmos[a,0]/atmos[a,4] + window_get_width()/2, atmos[a,1]/atmos[a,4] + window_get_height()/2, max(1/atmos[a,4],0.2), max(1/atmos[a,4], 0.2), 0, c_white, sin(degtorad(min(atmos[a,3], 180))));
-    draw_set_blend_mode(bm_normal);
-}
-
-#define drawParticle
-//This script draws the particles
-//===============================
-
-//Since the player particles are procedurally generated, we default to drawing sprites if not a player particle
-if (weap = 1)
-{
-    //Draw player bullets
-    switch (type)
-    {
-        case gun_gatling:
-            draw_self();    //Keep it simple for now
-            break;
-            
-        case gun_beam:      //Draw fancy beam weapon
-            //Draw halo first
-            draw_set_blend_mode(bm_add);
-            draw_set_color($101010);
-            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 8)
-            draw_set_color($777700);
-            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 3)
-            //Sprinkle sparklies on it
-            for (a=0; a<bWidth div 4; a+=1) {draw_set_color($444400); draw_point(x+cos(dir)*a*4 +random(4)-2,y+sin(dir)*a*4+random(8)-4)}
-            draw_set_blend_mode(bm_normal);
-            draw_set_color(c_fuchsia);
-            draw_line_width(x, y, x+cos(dir)*bWidth, y+sin(dir)*bWidth, 1)
-            instance_destroy();     //Beams only live one frame
-            break;
-    }
-
-} else {
-    if (weap = 2) 
-    {
-        //Draw enemy weapons
-        switch (type)
-        {
-            //Draw the small orb
-            case enemWeap_SmallOrb:
-                draw_set_blend_mode(bm_add);
-                draw_circle_color(x,y,5,make_color_hsv(color_get_hue(col),color_get_saturation(col),color_get_value(col)*0.5),c_black,false)
-                draw_set_blend_mode(bm_normal);
-                draw_circle_color(x,y,2,col,col,false)
-                
-        
-        }
-    } else {
-        //Draw all non-player bullets as sprites
-        draw_self();
-    }
-}
-
 
 #define beamControl
 //This script parses beams until they hit things
