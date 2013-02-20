@@ -24,8 +24,10 @@ keyLog[6] = ord('P');       //The pause button
 //Declare game variables
 yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
 xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
-xGameMoveSpd = 15;       //Game horizontal cruise speed in pixels per second
+xGameMoveSpd = 15;      //Game horizontal cruise speed in pixels per second
 yGameMoveSpd = 0;       //Game vertical cruise speed in pixels per second
+xGamePos = 0;           //X position of the game
+yGamePos = 0;           //Y position of the game
 experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
 mainWpnEvol = 0         //How evolved the main weapon is
 gamePause = 0;          //Whether or not the game is paused 0=play 1= pausing 2 = paused 3 = unpausing
@@ -33,6 +35,7 @@ pauseFade = 0;          //Manages pause screen fade effects
 
 maxAtmosPtcls = 400;    //Maximum number of particles the atmosphere renders
 atmosZone = sparkle;    //Default to sparkle zone
+atmosTOD = 0;           //Atmosphere time of day
 
 //Initialize the atmosphere
 for (a=0; a<maxAtmosPtcls; a+=1)
@@ -169,12 +172,6 @@ if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
 if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
 
-//Manage the timer for the beacon FX
-if plyrFXBeaconTimer = 0 then
-{
-      plyrFXBeaconTimer = 70
-} else {plyrFXBeaconTimer -= 1}
-
 //Draw the player wing vortices
 for (a = 0; a < 2; a+=1)
 {
@@ -195,31 +192,16 @@ for (a = 0; a < 2; a+=1)
     }
 }
 
-//Update the player wing vortices
-for (a = 0; a < 2; a+=1)
-{
-    for (b = 0; b < plyrFXTrailLen-1; b+=1)
-    {
-        //Move all trails back one segment
-        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
-        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
-    }
-    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
-    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
-}
-
-
 //TODO: Animate the ship roll
 
 #define drawGame
 //This script calls the functions that draw the game
 
+//Draw the atmosphere behind everything
+drawAtmos()
 
 //Draw the player
 drawPlayer()
-
-//Draw the atmosphere on top of the player
-drawAtmos()
 
 //Draw the pause screen overlay
 if(gamePause > 0)
@@ -283,6 +265,18 @@ if (weap = 1)
 
 
 #define drawAtmos
+//Draw the sky and TOD
+draw_rectangle_color(0,atmosY,window_get_width(),horizon,atmosCol,atmosCol,horizCol, horizCol, false);
+draw_rectangle_color(0,spaceY,window_get_width(),atmosY,spaceCol,spaceCol,atmosCol, atmosCol, false);
+
+//Render background
+
+
+
+//Render background terrain
+
+
+
 //Draw the atmosphere
 for (a=0; a<maxAtmosPtcls; a+=1)
 {
@@ -380,6 +374,193 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
         }
 }
 
+#define atmosphereHandler
+//The atmosphere handler is a FSM that manages different onscreen particles based on different zones
+//Please note that particle generation will not behave correctly if the game is moving diagonally.
+
+
+//Manage sky and Time of Day
+//All variables are in terms of the screen
+horizon = window_get_height()/2 - yGamePos/1000;        //Where the sky ends, the horizon line
+atmosY = window_get_height()/2 - (sqr(yGamePos)/1000 - yGamePos/1000 + 20);      //Where the falloff to dark occurs
+spaceY = 0;                                 //Where space actually is
+horizCol = make_color_hsv(136, 229, 158)    //This will eventually be an equation
+atmosCol = make_color_hsv(145, 255, 153)    //This will eventually be an equation
+spaceCol = make_color_hsv(149, 211, 114)    //This will eventually be an equation
+
+
+
+
+//Manage the particles
+for (a=0; a<maxAtmosPtcls; a+=1)
+{
+    switch (atmosZone)
+    {
+        case sparkle:
+            //Manage positions
+            atmos[a,0] -= xGameMoveSpd*0.7;     //The particles are nearly stationary in the game world
+            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5-yGameMoveSpd*0.7;        //Slowly drifts downward
+            
+            //Manage downward drift timer
+            atmos[a,2] = (atmos[a,2]+3) mod 720         //Remember that this number is in degrees
+            
+            //Manage visibility timer
+            atmos[a,3] = (atmos[a,3]+2.5) mod 550        //Also in degrees
+
+        break;
+
+
+
+    }
+    
+    //Manage offscreen particles
+    if (atmos[a,0] < atmos[a,4]*(0-window_get_width()/2))   //Leaves left X
+    {
+        atmos[a,4] = exp(random(30)/10);
+        atmos[a,0] = (window_get_width()/2 + random(xGameMoveSpd))*atmos[a,4];
+        atmos[a,1] = random(atmos[a,4]*window_get_height())-atmos[a,4]*window_get_height()/2;
+        atmos[a,2] = random(720);
+        atmos[a,3] = random(550);
+    }
+    
+    if (atmos[a,1] > atmos[a,4]*(window_get_height()/2))    //Leaves bottom y
+    {
+        atmos[a,4] = exp(random(30)/10);
+        atmos[a,0] = random(atmos[a,4]*window_get_width());
+        atmos[a,1] = atmos[a,4]*(0-window_get_height()/2);
+        atmos[a,2] = random(720);
+        atmos[a,3] = random(550);
+    }
+}
+
+//TODO: eventually this will be set up for smooth fading from zone to zone
+
+#define beamControl
+//This script parses beams until they hit things
+
+parseChunkSize = 30;    //How many pixels to parse at once
+done = false            //Variable to keep track of when we are done
+i = x;                  //Temp variables for the parsing
+j = y;
+
+while (!done)
+{
+    a = collision_line(i,j,i+cos(dir)*parseChunkSize,j+sin(dir)*parseChunkSize,enemy,false,false)
+    if (a > 0)
+    {
+        //We hit something
+        done = true
+        target = a;     //Tell who the beam hit
+        
+        //Run the beam forward
+        i += cos(dir)*parseChunkSize;
+        j += sin(dir)*parseChunkSize;
+        
+        //Now walk the beam out of the target
+        while (!collision_point(i,j,enemy, false,false) < 0)
+        {
+            i -= cos(dir)*2;
+            j -= sin(dir)*2;
+        }
+        
+        //Do the damage if specified
+        if (argument0) {a.hlth -= dmg;}
+        
+    
+    }else{
+        //We hit nothing
+        i += cos(dir)*parseChunkSize;
+        j += sin(dir)*parseChunkSize;
+        
+        //If off screen, we are done
+        if(abs(i-window_get_width()/2) > window_get_width()/2 or abs(j-window_get_height()/2) > window_get_height()/2)
+        {done = true}
+    }
+}
+
+//Set the final beam width
+bWidth = point_distance(x,y,i,j);   //Can make this run faster by simply adding all distance traveled in the code ahead
+
+#define enemyHandler
+//This script handles all of the enemy actions
+
+switch (type)
+{
+    case enemy_bomb:        //This enemy will just be a slowly floating bomb that explodes shortly after being hit or coming near the player
+        //Decelerate the bomb
+        if (xSpd < gameController.xGameMoveSpd*0.65)
+        {
+            xSpd += (gameController.xGameMoveSpd - xSpd)*0.07;
+        }
+        
+        //Drift the bomb toward the player with experience
+        ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.010
+        
+        //Explode the bomb if it gets close to the player
+        //We use the expanded math rather than the built-in function to avoid the sqrt() function, which is high processor intensive
+        if ((sqr(x-gameController.plyrX)+sqr(y-gameController.plyrY)) < sqr(32 + gameController.experience*0.02) && hlth > 0)
+        {
+            hlth = 0;
+            explTimer = explTimer*0.5;      //Timer gets cut in half for quick detonation
+            
+        }
+        
+        
+}
+
+//All enemies will naturally drift at the speed of the game
+x += xSpd - gameController.xGameMoveSpd;
+y += ySpd;
+
+//Destroy all enemies that leave the screen on the left side
+if (x < 0) {instance_destroy()};
+
+//How to handle enemy destruction
+if (hlth <= 0)
+{
+    switch(type)
+    {
+    case enemy_bomb:
+        explTimer -= 1; //Subtract from the explosion timer
+        if(explTimer < 0)
+        {
+            //Create the damage field
+            s = 15 + gameController.experience*0.02     //Variable that defines the size of the explosion
+                //TODO
+            
+            //Create the lingering particles
+            for(a=0; a<gameController.experience*0.005+4; a+=1)
+            {
+                b = instance_create(x,y,particle);
+                b.x = b.x-s/2+random(s)             //Randomize their position inside of the explosion
+                b.y = b.y-s/2+random(s)
+                b.xSpd = 0 - random(10)*0.1;
+                b.ySpd = 0;
+                b.xAcc = -0.01 - random(10)*0.001;  //No deceleration
+                b.yAcc = 0;             //No deceleration
+                b.weap = 2;             //This bullet is an enemy weapon
+                b.type = enemWeap_SmallOrb;     //Create small orbs
+                b.col = c_white;                //Create small white orbs
+                b.coll = false;         //This particle does NOT collide with other particles
+            }
+            
+            //Create the FX
+            a = instance_create(x,y,FXsparks);
+            a.initXSpeed = 55;
+            a.initYSpeed = 55;
+            a.offsetX = gameController.xGameMoveSpd*0.65 + 27;
+            a.lifetime = 3;
+            
+            
+        
+            //Destroy the bomb
+            instance_destroy();
+        }
+        break;
+
+    }
+}
+
 #define gameController
 //Manage game pausing
 //Odd modes are transition modes, this checks to make sure the state is even
@@ -410,7 +591,7 @@ if (gamePause > 0)
     playerHandler();
     
     //Call the enemyHandler scripts
-    with (enemy) {enemyHandler();}
+    with (enemy) enemyHandler();
     
     //Hack to add enemies when the space bar is pressed
     if (keyboard_check(vk_space))
@@ -421,7 +602,7 @@ if (gamePause > 0)
     }
     
     //Hack to add experience
-    if (keyboard_check(ord('T'))) {experience += 100};
+    if (keyboard_check(ord('T'))) {experience += 10};
     
     //Hack to create spark FX when mouse clicked
     if (mouse_check_button_released(mb_left))
@@ -435,10 +616,101 @@ if (gamePause > 0)
         plyrShield.visible = 1-plyrShield.visible
     }
     
+    //Update game position
+    xGamePos += xGameMoveSpd;
+    yGamePos += yGameMoveSpd;
+    
     //Call the atmosphere manager script
     atmosphereHandler();
 
 }
+
+#define particleHandler
+//Here we manage the day-to-day lives of the particles
+//----------------------------------------------------
+
+//Manage position
+x += xSpd;
+y += ySpd;
+
+//Destroy out of-play-particles
+if (abs(window_get_width()/2 - x) > window_get_width()/2) then {instance_destroy()}
+if (abs(window_get_height()/2 - y) > window_get_height()/2) then {instance_destroy()}
+
+//Manage collisions between particles
+if (coll)   //Only check if the check collisions flag is set
+{
+    a = collision_line(x, y, x+xSpd, y+ySpd, particle, false, true)
+    if (a > 0)
+    {
+        if (depth = a.depth)    //Have to do nested ifs like this because game maker is gay
+        {
+            a.ySpd = random(200)/10-10;
+            a.xSpd = 21;
+            ySpd = random(200)/10-10;
+            xSpd = 21;
+            
+            //Create sparks and shit
+            z = instance_create(x,y,FXsparks);
+            z.numSparks = random(5)+5;
+            z.initYSpeed = 5;
+            z.offsetY = 2.5;
+            z.offsetX = -10;
+            z.acceleration = 0.7;
+            
+            //TODO also create a sprite spark or something
+        }
+    }
+}
+
+//Manage weapon collisions
+if (weap = 1)
+{
+    switch (type)       //'type' variable only used for weapons
+    {
+    case gun_gatling:
+        a = collision_line(x, y, x+xSpd, y+ySpd, enemy, true, false);
+        if (a > 0)
+        {
+            a.hlth -= dmg;      //Subtract damage when hits an enemy
+            numImpacts -= 1;    //Subtract one from the number of impacts remaining
+        }
+        break;
+    }
+} else {
+    if (weap = 2)
+    {
+        switch (type)       //'type' variable only used for weapons
+        {
+        case enemWeap_SmallOrb:
+            a = collision_line(x, y, x+xSpd, y+ySpd, plyrShield, false, false);
+            if (a>0) {instance_destroy()}
+            
+            //Currently, this particle does not do damage
+            break;
+        }
+    }
+}
+
+//Destroy particles with no impacts remaining (the 'health' of the particle)
+if (numImpacts < 0)
+{
+    if (weap > 0)
+    {
+        switch (type)       //'type' variable only used for weapons
+        {
+        case gun_gatling:
+            instance_destroy();
+            break;
+        }
+    }else {
+        instance_destroy();
+    }
+}
+
+//Manage acceleration
+xSpd += xAcc;
+ySpd += yAcc;
 
 #define playerHandler
 //This script is the master script for player control
@@ -578,181 +850,34 @@ if (keyboard_check_direct(keyLog[4])) then
 
 
 
+//Handle player aesthetics
+//------------------------
 
-
-
-
-
-
-
-
-
-#define particleHandler
-//Here we manage the day-to-day lives of the particles
-//----------------------------------------------------
-
-//Manage position
-x += xSpd;
-y += ySpd;
-
-//Destroy out of-play-particles
-if (abs(window_get_width()/2 - x) > window_get_width()/2) then {instance_destroy()}
-if (abs(window_get_height()/2 - y) > window_get_height()/2) then {instance_destroy()}
-
-//Manage collisions between particles
-if (coll)   //Only check if the check collisions flag is set
+//Update the player wing vortices
+for (a = 0; a < 2; a+=1)
 {
-    a = collision_line(x, y, x+xSpd, y+ySpd, particle, false, true)
-    if (a > 0)
+    for (b = 0; b < plyrFXTrailLen-1; b+=1)
     {
-        if (depth = a.depth)    //Have to do nested ifs like this because game maker is gay
-        {
-            a.ySpd = random(200)/10-10;
-            a.xSpd = 21;
-            ySpd = random(200)/10-10;
-            xSpd = 21;
-            
-            //Create sparks and shit
-            z = instance_create(x,y,FXsparks);
-            z.numSparks = random(5)+5;
-            z.initYSpeed = 5;
-            z.offsetY = 2.5;
-            z.offsetX = -10;
-            z.acceleration = 0.7;
-            
-            //TODO also create a sprite spark or something
-        }
+        //Move all trails back one segment
+        plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
     }
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
+    plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
 }
 
-//Manage weapon collisions
-if (weap = 1)
+//Manage the timer for the beacon FX
+if plyrFXBeaconTimer = 0 then
 {
-    switch (type)       //'type' variable only used for weapons
-    {
-    case gun_gatling:
-        a = collision_line(x, y, x+xSpd, y+ySpd, enemy, true, false);
-        if (a > 0)
-        {
-            a.hlth -= dmg;      //Subtract damage when hits an enemy
-            numImpacts -= 1;    //Subtract one from the number of impacts remaining
-        }
-        break;
-    }
-} else {
-    if (weap = 2)
-    {
-        switch (type)       //'type' variable only used for weapons
-        {
-        case enemWeap_SmallOrb:
-            a = collision_line(x, y, x+xSpd, y+ySpd, plyrShield, false, false);
-            if (a>0) {instance_destroy()}
-            
-            //Currently, this particle does not do damage
-            break;
-        }
-    }
-}
+      plyrFXBeaconTimer = 70
+} else {plyrFXBeaconTimer -= 1}
 
-//Destroy particles with no impacts remaining (the 'health' of the particle)
-if (numImpacts < 0)
-{
-    if (weap > 0)
-    {
-        switch (type)       //'type' variable only used for weapons
-        {
-        case gun_gatling:
-            instance_destroy();
-            break;
-        }
-    }else {
-        instance_destroy();
-    }
-}
 
-//Manage acceleration
-xSpd += xAcc;
-ySpd += yAcc;
 
-#define enemyHandler
-//This script handles all of the enemy actions
 
-switch (type)
-{
-    case enemy_bomb:        //This enemy will just be a slowly floating bomb that explodes shortly after being hit or coming near the player
-        //Decelerate the bomb
-        if (xSpd < gameController.xGameMoveSpd*0.65)
-        {
-            xSpd += (gameController.xGameMoveSpd - xSpd)*0.07;
-        }
-        
-        //Drift the bomb toward the player with experience
-        ySpd = ySpd*0.9 + min(gameController.experience, 10000)/10000*(gameController.plyrY-y)*0.010
-        
-        //Explode the bomb if it gets close to the player
-        //We use the expanded math rather than the built-in function to avoid the sqrt() function, which is high processor intensive
-        if ((sqr(x-gameController.plyrX)+sqr(y-gameController.plyrY)) < sqr(32 + gameController.experience*0.02) && hlth > 0)
-        {
-            hlth = 0;
-            explTimer = explTimer*0.5;      //Timer gets cut in half for quick detonation
-            
-        }
-        
-        
-}
 
-//All enemies will naturally drift at the speed of the game
-x += xSpd - gameController.xGameMoveSpd;
-y += ySpd;
 
-//Destroy all enemies that leave the screen on the left side
-if (x < 0) {instance_destroy()};
 
-//How to handle enemy destruction
-if (hlth <= 0)
-{
-    switch(type)
-    {
-    case enemy_bomb:
-        explTimer -= 1; //Subtract from the explosion timer
-        if(explTimer < 0)
-        {
-            //Create the damage field
-            s = 15 + gameController.experience*0.02     //Variable that defines the size of the explosion
-                //TODO
-            
-            //Create the lingering particles
-            for(a=0; a<gameController.experience*0.005+4; a+=1)
-            {
-                b = instance_create(x,y,particle);
-                b.x = b.x-s/2+random(s)             //Randomize their position inside of the explosion
-                b.y = b.y-s/2+random(s)
-                b.xSpd = 0 - random(10)*0.1;
-                b.ySpd = 0;
-                b.xAcc = -0.01 - random(10)*0.001;  //No deceleration
-                b.yAcc = 0;             //No deceleration
-                b.weap = 2;             //This bullet is an enemy weapon
-                b.type = enemWeap_SmallOrb;     //Create small orbs
-                b.col = c_white;                //Create small white orbs
-                b.coll = false;         //This particle does NOT collide with other particles
-            }
-            
-            //Create the FX
-            a = instance_create(x,y,FXsparks);
-            a.initXSpeed = 55;
-            a.initYSpeed = 55;
-            a.offsetX = gameController.xGameMoveSpd*0.65 + 27;
-            a.lifetime = 3;
-            
-            
-        
-            //Destroy the bomb
-            instance_destroy();
-        }
-        break;
-
-    }
-}
 
 #define sparkFX
 //Manage sparks
@@ -802,99 +927,4 @@ for (a=0; a<numSparks; a+=1)
 
 //Kill the system if nothing left alive
 if (!alive) {instance_destroy()};
-
-#define atmosphereHandler
-//The atmosphere handler is a FSM that manages different onscreen particles based on different zones
-
-//Please note that particle generation will not behave correctly if the game is moving diagonally.
-
-//Manage the particles
-for (a=0; a<maxAtmosPtcls; a+=1)
-{
-    switch (atmosZone)
-    {
-        case sparkle:
-            //Manage positions
-            atmos[a,0] -= xGameMoveSpd*0.7;     //The particles are nearly stationary in the game world
-            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5-yGameMoveSpd*0.7;        //Slowly drifts downward
-            
-            //Manage downward drift timer
-            atmos[a,2] = (atmos[a,2]+3) mod 720         //Remember that this number is in degrees
-            
-            //Manage visibility timer
-            atmos[a,3] = (atmos[a,3]+2.5) mod 550        //Also in degrees
-
-        break;
-
-
-
-    }
-    
-    //Manage offscreen particles
-    if (atmos[a,0] < atmos[a,4]*(0-window_get_width()/2))   //Leaves left X
-    {
-        atmos[a,4] = exp(random(30)/10);
-        atmos[a,0] = (window_get_width()/2 + random(xGameMoveSpd))*atmos[a,4];
-        atmos[a,1] = random(atmos[a,4]*window_get_height())-atmos[a,4]*window_get_height()/2;
-        atmos[a,2] = random(720);
-        atmos[a,3] = random(550);
-    }
-    
-    if (atmos[a,1] > atmos[a,4]*(window_get_height()/2))    //Leaves bottom y
-    {
-        atmos[a,4] = exp(random(30)/10);
-        atmos[a,0] = random(atmos[a,4]*window_get_width());
-        atmos[a,1] = atmos[a,4]*(0-window_get_height()/2);
-        atmos[a,2] = random(720);
-        atmos[a,3] = random(550);
-    }
-}
-
-//TODO: eventually this will be set up for smooth fading from zone to zone
-
-#define beamControl
-//This script parses beams until they hit things
-
-parseChunkSize = 15;    //How many pixels to parse at once
-done = false            //Variable to keep track of when we are done
-i = x;                  //Temp variables for the parsing
-j = y;
-
-while (!done)
-{
-    a = collision_line(i,j,i+cos(dir)*parseChunkSize,j+sin(dir)*parseChunkSize,enemy,false,false)
-    if (a > 0)
-    {
-        //We hit something
-        done = true
-        target = a;     //Tell who the beam hit
-        
-        //Run the beam forward
-        i += cos(dir)*parseChunkSize;
-        j += sin(dir)*parseChunkSize;
-        
-        //Now walk the beam out of the target
-        while (!collision_point(i,j,enemy, false,false) < 0)
-        {
-            i -= cos(dir)*2;
-            j -= sin(dir)*2;
-        }
-        
-        //Do the damage if specified
-        if (argument0) {a.hlth -= dmg;}
-        
-    
-    }else{
-        //We hit nothing
-        i += cos(dir)*parseChunkSize;
-        j += sin(dir)*parseChunkSize;
-        
-        //If off screen, we are done
-        if(abs(i-window_get_width()/2) > window_get_width()/2 or abs(j-window_get_height()/2) > window_get_height()/2)
-        {done = true}
-    }
-}
-
-//Set the final beam width
-bWidth = point_distance(x,y,i,j);   //Can make this run faster by simply adding all distance traveled in the code ahead
 
