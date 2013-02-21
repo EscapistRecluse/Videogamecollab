@@ -25,17 +25,23 @@ keyLog[6] = ord('P');       //The pause button
 yBorders = 20;          //Prevent the player from going closer than 20 pixels to Y screen edges
 xBorders = 10;          //Prevent the player from going closer than 10 pixels to X screen edges
 xGameMoveSpd = 15;      //Game horizontal cruise speed in pixels per second
-yGameMoveSpd = 0;       //Game vertical cruise speed in pixels per second
+yGameMoveSpd = 0;       //Game vertical cruise speed in pixels per second (this in inverted, positive moves upward)
 xGamePos = 0;           //X position of the game
-yGamePos = 0;           //Y position of the game
+yGamePos = 0;           //Y position of the game (from -1000 to 1000)
 experience = 0;         //This variable causes enemies to get harder the more experienced a player is (even when replaying a level)
 mainWpnEvol = 0         //How evolved the main weapon is
 gamePause = 0;          //Whether or not the game is paused 0=play 1= pausing 2 = paused 3 = unpausing
 pauseFade = 0;          //Manages pause screen fade effects
 
-maxAtmosPtcls = 400;    //Maximum number of particles the atmosphere renders
+maxAtmosPtcls = 000;    //Maximum number of particles the atmosphere renders (turned off for now)
 atmosZone = sparkle;    //Default to sparkle zone
 atmosTOD = 0;           //Atmosphere time of day
+horizon = 0;
+atmosY = 0;
+spaceY = 0;
+horizCol = 0;
+atmosCol = 0;
+spaceCol = 0;
 
 //Initialize the atmosphere
 for (a=0; a<maxAtmosPtcls; a+=1)
@@ -381,9 +387,9 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
 
 //Manage sky and Time of Day
 //All variables are in terms of the screen
-horizon = window_get_height()/2 - yGamePos/1000;        //Where the sky ends, the horizon line
-atmosY = window_get_height()/2 - (sqr(yGamePos)/1000 - yGamePos/1000 + 20);      //Where the falloff to dark occurs
-spaceY = 0;                                 //Where space actually is
+horizon = window_get_height()*0.5 + window_get_height()*0.6*yGamePos/1000;        //Where the sky ends, the horizon line (falls off linearly to slightly under the screen at a max height of 1000)
+atmosY = window_get_height()*0.3 + 0.7*window_get_height()*sqr(yGamePos*0.03163)/1000;          //Where the falloff to dark occurs (falls off quadratically to screen bottom at max height of 1000)
+spaceY = window_get_height()*0.6*(max(500,yGamePos)-500)/500;                                   //Where space actually is
 horizCol = make_color_hsv(136, 229, 158)    //This will eventually be an equation
 atmosCol = make_color_hsv(145, 255, 153)    //This will eventually be an equation
 spaceCol = make_color_hsv(149, 211, 114)    //This will eventually be an equation
@@ -616,9 +622,12 @@ if (gamePause > 0)
         plyrShield.visible = 1-plyrShield.visible
     }
     
+    if (keyboard_check_pressed(ord('I'))) {yGameMoveSpd += 1}
+    if (keyboard_check_pressed(ord('O'))) {yGameMoveSpd -= 1}
+    
     //Update game position
     xGamePos += xGameMoveSpd;
-    yGamePos += yGameMoveSpd;
+    yGamePos = max(min(yGamePos + yGameMoveSpd, 1000), -1000);     //This is bounded at -1000 and 1000
     
     //Call the atmosphere manager script
     atmosphereHandler();
@@ -860,7 +869,7 @@ for (a = 0; a < 2; a+=1)
     {
         //Move all trails back one segment
         plyrFXTrail[b+plyrFXTrailLen*a,0] = plyrFXTrail[b+plyrFXTrailLen*a + 1,0] - xGameMoveSpd + (plyrX-plyrLastX)*0.5;
-        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] - yGameMoveSpd + (plyrY-plyrLastY)*0.5;
+        plyrFXTrail[b+plyrFXTrailLen*a,1] = plyrFXTrail[b+plyrFXTrailLen*a + 1,1] + yGameMoveSpd + (plyrY-plyrLastY)*0.5;
     }
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,0] = plyrX - 7 + (plyrX/window_get_width()*6 - 3)*(a*2-1);
     plyrFXTrail[(plyrFXTrailLen)*(a+1)-1,1] = plyrY + plyrSpdY/3*(a*2-1) - 3 + (plyrY/window_get_height()*6 - 3)*(a*2-1);
