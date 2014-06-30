@@ -4,7 +4,7 @@
 
 ///SET THE FUCKING FRAMES PER SECOND
 //my GOD 30FPS games piss me off (and make my eyes hurt).
-display_set_frequency(60);
+//display_set_frequency(60);    //This used to work, now it crashes
 room_speed = 60;
 
 //Declare the player control array. This array will be used to keep track of the player
@@ -33,9 +33,10 @@ mainWpnEvol = 0         //How evolved the main weapon is
 gamePause = 0;          //Whether or not the game is paused 0=play 1= pausing 2 = paused 3 = unpausing
 pauseFade = 0;          //Manages pause screen fade effects
 
-maxAtmosPtcls = 000;    //Maximum number of particles the atmosphere renders (turned off for now)
+maxAtmosPtcls = 100;    //Maximum number of particles the atmosphere renders (turned off for now)
 atmosZone = sparkle;    //Default to sparkle zone
 atmosTOD = 0;           //Atmosphere time of day
+atmosSunAngle = degtorad(205);      //Angle of the sun in the atmosphere
 horizon = 0;
 atmosY = 0;
 spaceY = 0;
@@ -51,6 +52,23 @@ for (a=0; a<maxAtmosPtcls; a+=1)
     atmos[a,1] = random(atmos[a,4]*window_get_height())-atmos[a,4]*window_get_height()/2;   //Y pos
     atmos[a,2] = random(720);                             //Drift timer
     atmos[a,3] = random(550);                  //Visibility timer
+}
+
+//Init the volcano surface
+enomivSpeckleCount = 50;
+enomivSpckLyrs = 3;         //How many speckle layers
+enomivLyrs[0,0] = 0;        //Data on layers. X is layer, Y is Alpha, target alpha, start alpha, timer, max timer
+enomivYParseExt = 60;       //How many pixels to extend the parsing in the y direction
+enomivSurfacePrep();
+
+//Initialize the speckle layers
+for (a=0; a<enomivSpckLyrs; a+=1)
+{
+    enomivLyrs[a,0] = 1;
+    enomivLyrs[a,1] = 1;
+    enomivLyrs[a,2] = 1;
+    enomivLyrs[a,3] = 1;
+    enomivLyrs[a,4] = 1;
 }
 
 
@@ -160,8 +178,8 @@ b = plyrY/window_get_height()*6 - 3
 //Draw the player craft rear wing
 draw_sprite_ext(plyrShipWinggun, plyrMainWeapon, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.95, 0.95, 0, make_color_hsv(0, 0, 200), 1);
 draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 5 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.6, 0.6, 0, c_green, 0.5);
-if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.2, 0.2, 0, c_green, 0.5);
+if plyrFXBeaconTimer = 5 then {draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.85, 0.85, 0, c_green, 0.4); draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.5, 0.5, 0, c_white, 0.6)}
+if plyrFXBeaconTimer = 4 then draw_sprite_ext(FXbeacon, -1, plyrX-3 - a, plyrY-plyrSpdY/3-1 - b, 0.5, 0.5, 0, c_green, 0.5);
 if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
 if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX - a, plyrY-plyrSpdY/3-2 - b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
@@ -172,8 +190,8 @@ draw_sprite(plyrShipBase,-1,plyrX,plyrY);
 //Draw the player craft front wing
 draw_sprite(plyrShipWinggun, plyrMainWeapon, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b);
 draw_set_blend_mode(bm_add);    //Set the blend mode
-if plyrFXBeaconTimer = 1 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.6, 0.6, 0, c_red, 0.5);
-if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.2, 0.2, 0, c_red, 0.5);
+if plyrFXBeaconTimer = 1 then {draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.85, 0.85, 0, c_red, 0.4); draw_sprite_ext(FXbeacon, -1,  plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.5, 0.5, 0, c_white, 0.6)}
+if plyrFXBeaconTimer = 0 then draw_sprite_ext(FXbeacon, -1, plyrX-3 + a, plyrY+plyrSpdY/3-1 + b, 0.5, 0.5, 0, c_red, 0.5);
 if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <9) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (9-plyrMainWpnRld)*1.2, $C04060, c_black, false);
 draw_set_blend_mode(bm_normal);    //Reset the blend mode
 if (plyrCurMainWpn = gun_beam && plyrMainWpnRld <3) then draw_circle_color(plyrX + a, plyrY+plyrSpdY/3-2 + b, (3-plyrMainWpnRld)*0.9, $FFFFFF, $FFC0DD, false);
@@ -212,9 +230,17 @@ drawPlayer()
 //Draw the pause screen overlay
 if(gamePause > 0)
 {
+    //Draw the nightshade
     draw_set_blend_mode(bm_subtract);
     draw_set_color(make_color_hsv(0,0,pauseFade*110));
     draw_rectangle(0,0,window_get_width(), window_get_height(), false);
+    
+    //Praw the pause text
+    draw_set_blend_mode(bm_add);
+    a = "Paused"
+    draw_set_font(headingFont);
+    draw_text(window_get_width()/2*pauseFade-string_width(a)/2, window_get_height()*0.11, a);
+    draw_text_color(window_get_width()/2-string_width(a)/2, window_get_height()*0.11, a, c_white, c_white, c_white, c_white, pauseFade);
     draw_set_blend_mode(bm_normal);
 }
 
@@ -275,7 +301,41 @@ if (weap = 1)
 draw_rectangle_color(0,atmosY,window_get_width(),horizon,atmosCol,atmosCol,horizCol, horizCol, false);
 draw_rectangle_color(0,spaceY,window_get_width(),atmosY,spaceCol,spaceCol,atmosCol, atmosCol, false);
 
-//Render background
+//Draw space if necessary
+if (spaceY > 0) 
+{
+    a = make_color_hsv(color_get_hue(spaceCol), color_get_saturation(spaceCol)*0.8, color_get_value(spaceCol) / (1+ spaceY*0.015))
+    draw_rectangle_color(0,0,window_get_width(),spaceY, a, a, spaceCol, spaceCol, false)
+}
+
+//Render Mount Enomiv
+//enomivLyrs[0,0] X is layer, Y is Alpha, target alpha, start alpha, timer, max timer
+draw_surface(enomiv, 50, horizon-sprite_get_height(mountEnomiv))
+for (a=0; a<enomivSpckLyrs; a+=1)
+{
+    //Calculate the layer's alpha
+    //---------------------------
+    enomivLyrs[a,3] += 1  //Iterate the timer
+    
+    //Set new conditions when timer ends
+    if (enomivLyrs[a,3] >= enomivLyrs[a,4])
+    {
+        enomivLyrs[a,0] = enomivLyrs[a,1]   //Set Alpha to target value
+        enomivLyrs[a,1] = choose(0,0.2,1)   //Set target alpha values
+        enomivLyrs[a,2] = enomivLyrs[a,0]
+        enomivLyrs[a,3] = 1                 //Reset timer
+        enomivLyrs[a,4] = irandom(85)+65    //Set transition time
+    }
+    
+    //Set the appropriate alpha value
+    enomivLyrs[a,0] = (1-(cos(enomivLyrs[a,3] / enomivLyrs[a,4] * pi)+1) / 2 )*(enomivLyrs[a,1]-enomivLyrs[a,2]) + enomivLyrs[a,2]
+        
+    if (enomivLyrs[a,0] < 0) {show_message("Layer "+string(a)+", "+string(enomivLyrs[a,0])+" "+string(enomivLyrs[a,1])+" "+string(enomivLyrs[a,2])+" "+string(enomivLyrs[a,3])+" "+string(enomivLyrs[a,4]))}
+    
+
+    //Render the layer
+    draw_surface_ext(enomivSpec[a], 50, horizon-sprite_get_height(mountEnomiv), 1, 1, 0, c_white, enomivLyrs[a,0])
+}
 
 
 
@@ -290,6 +350,52 @@ for (a=0; a<maxAtmosPtcls; a+=1)
     draw_sprite_ext(atmosSprites, atmosZone, atmos[a,0]/atmos[a,4] + window_get_width()/2, atmos[a,1]/atmos[a,4] + window_get_height()/2, max(1/atmos[a,4],0.2), max(1/atmos[a,4], 0.2), 0, c_white, sin(degtorad(min(atmos[a,3], 180))));
     draw_set_blend_mode(bm_normal);
 }
+
+#define enomivSurfacePrep
+//Here we prepare the drawing surface for Mount Enotsav
+//-----------------------------------------------------
+
+//Create the surface
+enomiv = surface_create(sprite_get_width(mountEnomiv), sprite_get_height(mountEnomiv))
+
+//Render the sprite
+surface_set_target(enomiv)
+draw_sprite(mountEnomiv,-1,0,sprite_get_height(mountEnomiv))
+
+//Render the speckle layers
+for (a=0; a<=enomivSpckLyrs; a+=1)
+{
+    enomivSpec[a] = surface_create(sprite_get_width(mountEnomiv), sprite_get_height(mountEnomiv))
+    surface_set_target(enomivSpec[a])
+    
+    for (f=0; f<=enomivSpeckleCount; f+=1)
+    {
+        //Parse out the speckles
+        b = sprite_get_width(mountEnomiv)
+        c = sprite_get_height(mountEnomiv)-random(sprite_get_height(mountEnomiv)+enomivYParseExt)
+        d = false
+        while d = false //Such a dangerous way to do things
+        {
+            e = 3 + random(25)  //To create a random distribution up to 25 pixels inward
+            b += cos(atmosSunAngle)*e
+            c -= sin(atmosSunAngle)*e
+            
+            //Test for collision
+            if (surface_getpixel(enomiv, b, c) > 0)
+            {
+                //Draw a point there, and exit loop
+                draw_point_color(b,c, make_color_rgb(100+random(155),100+random(155),100+random(155)))
+                d = true;
+            } else { d = false;}
+            
+            //Exit loop if left sprite
+            if (b<0 or c>sprite_get_height(mountEnomiv)) {d = true}
+        }
+    }
+    
+}
+
+surface_reset_target()
 
 #define menuHandler
 //Here we manage menu related things
@@ -395,6 +501,20 @@ atmosCol = make_color_hsv(145, 255, 153)    //This will eventually be an equatio
 spaceCol = make_color_hsv(149, 211, 114)    //This will eventually be an equation
 
 
+//Manage layer transparancies for the ominous volcano in the background
+//enomivLyrs[0,0] X is layer, Y is Alpha, target alpha, start alpha, timer, max timer
+for (a=0; a<enomivSpckLyrs; a+=1)
+{
+    //Manage the timer
+    if (enomivLyrs[a,3] > enomivLyrs[a,4]-1)
+    {
+        //Set a new alpha target
+        
+    } else {
+        enomivLyrs[a,3] += 1    //Increment the timer
+        enomivLyrs[a,0] = enomivLyrs[a,1] + enomivLyrs[a,1]-enomivLyrs[a,2] //Iterate the alpha value
+    }
+}
 
 
 //Manage the particles
