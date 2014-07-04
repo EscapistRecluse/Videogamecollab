@@ -1,3 +1,23 @@
+#define TODO
+/*Consider maybe making it a game the player is forced to choose how they want to make the game harder
+
+Faster engines allow you to catch a mini-boss
+Upgrading shields keeps radar from a friendly ground unit from finding you
+
+
+
+BUG: weapons don't tracks the wings when craft is above mid screen
+
+-Terrain rendering engine
+--Heightmap transform to screen space
+--Heightmap motion
+--Texturing and shadowing
+-Atmosphere changing
+-Pause menu
+-Level progress system
+-Health/shield system
+-Time of day system
+
 #define Initialization
 //In this script, we define all of the variables we are going to use elsewhere in the game
 //========================================================================================
@@ -69,6 +89,23 @@ for (a=0; a<enomivSpckLyrs; a+=1)
     enomivLyrs[a,2] = 1;
     enomivLyrs[a,3] = 1;
     enomivLyrs[a,4] = 1;
+}
+
+//Init the terrain
+terrainMapDepth = 15;       //This is the length and height of the terrain rendering mesh
+horizonDist = 15;           //Distance to the horizon from right under the camera
+for (a=0; a<terrainMapDepth; a+=1)
+{
+    for (b=0; b<terrainMapDepth; b+=1)
+    {
+        //Here we store data as RGB components in a color
+        //Red is height
+        //Blue and green are currently unused
+        terrainMap[a,b] = make_color_rgb(irandom(255),0,0)
+        
+        //Bottom row must be zero so it stitches properly
+        if (b==terrainMapDepth-1) {terrainMap[a,b] = 0}
+    }
 }
 
 
@@ -161,6 +198,7 @@ spreadX = 24;           //Particle initial spread, in the X direction
 spreadY = 24;           //Particle initial spread, in the Y direction
 offsetX = 15;           //Defines the speed bias left or right
 offsetY = 10;           //Defines the speed bias up and down
+flash = 2;              //How many frames to display a flash
 
 //Nonconfigurable variables
 init = false;           //Whether or not the particle system has already been created
@@ -235,13 +273,11 @@ if(gamePause > 0)
     draw_set_color(make_color_hsv(0,0,pauseFade*110));
     draw_rectangle(0,0,window_get_width(), window_get_height(), false);
     
-    //Praw the pause text
-    draw_set_blend_mode(bm_add);
-    a = "Paused"
-    draw_set_font(headingFont);
-    draw_text(window_get_width()/2*pauseFade-string_width(a)/2, window_get_height()*0.11, a);
-    draw_text_color(window_get_width()/2-string_width(a)/2, window_get_height()*0.11, a, c_white, c_white, c_white, c_white, pauseFade);
-    draw_set_blend_mode(bm_normal);
+    //Draw the pause text
+    drawPauseText("Paused",window_get_height()*0.11)
+    drawPauseText("Resume",window_get_height()*0.34)
+    drawPauseText("Configuration",window_get_height()*0.34+40)
+    drawPauseText("Main Menu",window_get_height()*0.34+80)
 }
 
 #define drawParticle
@@ -302,11 +338,7 @@ draw_rectangle_color(0,atmosY,window_get_width(),horizon,atmosCol,atmosCol,horiz
 draw_rectangle_color(0,spaceY,window_get_width(),atmosY,spaceCol,spaceCol,atmosCol, atmosCol, false);
 
 //Draw space if necessary
-if (spaceY > 0) 
-{
-    a = make_color_hsv(color_get_hue(spaceCol), color_get_saturation(spaceCol)*0.8, color_get_value(spaceCol) / (1+ spaceY*0.015))
-    draw_rectangle_color(0,0,window_get_width(),spaceY, a, a, spaceCol, spaceCol, false)
-}
+if (spaceY > 0) {draw_rectangle_color(0,0,window_get_width(),spaceY, deepSpaceCol, deepSpaceCol, spaceCol, spaceCol, false)}
 
 //Render Mount Enomiv
 //enomivLyrs[0,0] X is layer, Y is Alpha, target alpha, start alpha, timer, max timer
@@ -340,7 +372,32 @@ for (a=0; a<enomivSpckLyrs; a+=1)
 
 
 //Render background terrain
+//-------------------------
 
+//Needs to be textured, texture needs to be scaled, etc
+//Is going to be complex since it will essentially use a conic map projection
+
+//Precalculate certain variables
+a = window_get_width() / (terrainMapDepth-1)
+b = window_get_height() / ((terrainMapDepth-1) * 2)
+c = sprite_get_texture(sprite13,0)
+
+for (i=0; i<terrainMapDepth-1; i+=1)
+{
+    for (j=0; j<terrainMapDepth-1; j+=1)
+    {
+        d = power(terrainMapDepth-j, 0.7) +1
+        e = power(terrainMapDepth-(j+1), 0.7) +1
+        //Vertexes are specified in clockwise order, starting from top left
+        draw_set_color(f)
+        draw_primitive_begin_texture(pr_trianglefan, c)
+        draw_vertex_texture(i*a, j*b + horizon - terrainMap[i,j]/d, 0, 0)
+        draw_vertex_texture(i*a, (j+1)*b + horizon - terrainMap[i,j+1]/e, 0, 1)
+        draw_vertex_texture((i+1)*a, (j+1)*b + horizon - terrainMap[i+1,j+1]/e, 1, 1)
+        draw_vertex_texture((i+1)*a, j*b + horizon - terrainMap[i+1,j]/d, 1, 0)
+        draw_primitive_end()
+    }
+}
 
 
 //Draw the atmosphere
@@ -396,6 +453,14 @@ for (a=0; a<=enomivSpckLyrs; a+=1)
 }
 
 surface_reset_target()
+
+#define drawPauseText
+//Just a helper script to make the pause menu easier!
+draw_set_blend_mode(bm_add);
+draw_set_font(headingFont);
+draw_text(window_get_width()/2*pauseFade-string_width(argument0)/2, argument1, argument0);
+draw_text_color(window_get_width()/2-string_width(argument0)/2, argument1, argument0, c_white, c_white, c_white, c_white, pauseFade);
+draw_set_blend_mode(bm_normal);
 
 #define menuHandler
 //Here we manage menu related things
@@ -496,10 +561,10 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
 horizon = window_get_height()*0.5 + window_get_height()*0.6*yGamePos/1000;        //Where the sky ends, the horizon line (falls off linearly to slightly under the screen at a max height of 1000)
 atmosY = window_get_height()*0.3 + 0.7*window_get_height()*sqr(yGamePos*0.03163)/1000;          //Where the falloff to dark occurs (falls off quadratically to screen bottom at max height of 1000)
 spaceY = window_get_height()*0.6*(max(500,yGamePos)-500)/500;                                   //Where space actually is
-horizCol = make_color_hsv(136, 229, 158)    //This will eventually be an equation
-atmosCol = make_color_hsv(145, 255, 153)    //This will eventually be an equation
-spaceCol = make_color_hsv(149, 211, 114)    //This will eventually be an equation
-
+horizCol = make_color_hsv(136, 229, 158+yGamePos*0.04)                            //Gets bluer and almost hazy
+atmosCol = make_color_hsv(145-yGamePos*0.02, 255, 153+sqr(yGamePos*0.01)*0.02)    //Gets tealer and fades with height
+spaceCol = make_color_hsv(149, 211, 114-yGamePos*0.03)
+deepSpaceCol = make_color_hsv(149, 169, (114-yGamePos*0.03) / (1+ spaceY*0.015))
 
 //Manage layer transparancies for the ominous volcano in the background
 //enomivLyrs[0,0] X is layer, Y is Alpha, target alpha, start alpha, timer, max timer
@@ -525,7 +590,7 @@ for (a=0; a<maxAtmosPtcls; a+=1)
         case sparkle:
             //Manage positions
             atmos[a,0] -= xGameMoveSpd*0.7;     //The particles are nearly stationary in the game world
-            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5-yGameMoveSpd*0.7;        //Slowly drifts downward
+            atmos[a,1] += 2*max(sin(degtorad(min(atmos[a,2], 360))), 0)+0.5+yGameMoveSpd*0.7;        //Slowly drifts downward
             
             //Manage downward drift timer
             atmos[a,2] = (atmos[a,2]+3) mod 720         //Remember that this number is in degrees
@@ -624,7 +689,7 @@ switch (type)
         
         //Explode the bomb if it gets close to the player
         //We use the expanded math rather than the built-in function to avoid the sqrt() function, which is high processor intensive
-        if ((sqr(x-gameController.plyrX)+sqr(y-gameController.plyrY)) < sqr(32 + gameController.experience*0.02) && hlth > 0)
+        if ((sqr(x-gameController.plyrX)+sqr(y-gameController.plyrY)) < sqr(48 + gameController.experience*0.02) && hlth > 0)
         {
             hlth = 0;
             explTimer = explTimer*0.5;      //Timer gets cut in half for quick detonation
@@ -696,7 +761,7 @@ if (gamePause mod 2 == 0 && keyboard_check_pressed(keyLog[6]))
 }
 
 
-
+if (keyboard_check_pressed(vk_f2)) {room_restart()}
 
 if (gamePause > 0)
 {
@@ -1052,6 +1117,16 @@ for (a=0; a<numSparks; a+=1)
         draw_point_color(FX[a,0], FX[a,1], make_color_hsv(color_get_hue(sparkColor), color_get_saturation(sparkColor), 255*(FX[a,4]/lifetime)));  //Draw the spark
         alive = true;       //Dont kill the system, some particles are still alive
     }
+}
+
+//Draw a flash on top of the sparks
+if (flash > 0)
+{
+    draw_set_blend_mode(bm_add)
+    draw_sprite_ext(FXbeacon, -1, x, y, 0.6+0.3*flash, 0.6+0.3*flash, random(360), c_white, 0.8)
+    draw_sprite_ext(FXbeacon, -1, x, y, 0.8+0.3*flash, 0.8+0.3*flash, 0, c_white, 0.4)
+    draw_set_blend_mode(bm_normal)
+    flash -= 1
 }
 
 //Kill the system if nothing left alive
