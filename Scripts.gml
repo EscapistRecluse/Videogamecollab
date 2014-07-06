@@ -9,14 +9,17 @@ Upgrading shields keeps radar from a friendly ground unit from finding you
 BUG: weapons don't tracks the wings when craft is above mid screen
 
 -Terrain rendering engine
---Heightmap transform to screen space
---Heightmap motion
---Texturing and shadowing
+--Averaging of values
+--Texture scaling with distance
+--Shadowing
+--Props (trees and such)
 -Atmosphere changing
 -Pause menu
 -Level progress system
 -Health/shield system
 -Time of day system
+
+Determine if gaussian distribution to speckle layers looks good
 
 #define Initialization
 //In this script, we define all of the variables we are going to use elsewhere in the game
@@ -92,19 +95,51 @@ for (a=0; a<enomivSpckLyrs; a+=1)
 }
 
 //Init the terrain
-terrainMapDepth = 15;       //This is the length and height of the terrain rendering mesh
+terrainMapDepthX = 20;       //This is the length of the terrain rendering mesh, right most cells always reserved for motion
+terrainMapDepthY = 10;       //This is the height of the terrain rendering mesh
 horizonDist = 15;           //Distance to the horizon from right under the camera
-for (a=0; a<terrainMapDepth; a+=1)
+heightmapPosX = 0           //A value that interpolates between values in the heightmap
+conicAngle = degtorad(90)   //Angle in degrees to use for conic projection
+
+c = 0.5*(terrainMapDepthX-1)/tan(conicAngle*0.5)   //The Y position that the points converge, in map units, temporary variable
+//show_message(c)
+for (a=0; a<terrainMapDepthX; a+=1)
 {
-    for (b=0; b<terrainMapDepth; b+=1)
+    //Calculate the angle to the imaginary position
+    d = arctan2(((terrainMapDepthX-1)*0.5)-a, c)
+
+    e = tan(d)   //The value to add for every iteration
+    
+    for (b=0; b<terrainMapDepthY; b+=1)
     {
-        //Here we store data as RGB components in a color
+        //Here we store the real heightmap data as RGB components in a color
         //Red is height
         //Blue and green are currently unused
         terrainMap[a,b] = make_color_rgb(irandom(255),0,0)
         
         //Bottom row must be zero so it stitches properly
-        if (b==terrainMapDepth-1) {terrainMap[a,b] = 0}
+        if (b==terrainMapDepthY-1) {terrainMap[a,b] = 0}
+        
+        //This map tracks the x offsets after conic projection applied
+        //We go ahead and calculate that here
+        if (b = 0)
+        {terrProjectionMap[a,b] = 0} else {terrProjectionMap[a,b] = terrProjectionMap[a,b-1] + e}
+        
+        //The actual heightmap values to be rendered
+        terrainRenderMap[a,b] = 0
+    }
+}
+
+for (b=0; b<terrainMapDepthY; b+=1)
+{
+    //Always start rows normalized to the already projected cone
+    texPrjctMap[0,b] = terrProjectionMap[0,b]
+
+    for (a=1; a<terrainMapDepthX; a+=1)
+    {
+        //Build the texture projection map
+        //This handles the scaling of textures
+        texPrjctMap[a,b] = texPrjctMap[0,b] + a*(a+terrProjectionMap[a,b]-(a-1+terrProjectionMap[a-1,b]))
     }
 }
 
@@ -274,10 +309,10 @@ if(gamePause > 0)
     draw_rectangle(0,0,window_get_width(), window_get_height(), false);
     
     //Draw the pause text
-    drawPauseText("Paused",window_get_height()*0.11)
-    drawPauseText("Resume",window_get_height()*0.34)
-    drawPauseText("Configuration",window_get_height()*0.34+40)
-    drawPauseText("Main Menu",window_get_height()*0.34+80)
+    drawPauseText("Paused",window_get_height()*0.11, -1)    //Arguments: text, y position, highlight index
+    drawPauseText("Resume",window_get_height()*0.34, 0)
+    drawPauseText("Configuration",window_get_height()*0.34+40, 1)
+    drawPauseText("Main Menu",window_get_height()*0.34+80, 2)
 }
 
 #define drawParticle
@@ -378,26 +413,33 @@ for (a=0; a<enomivSpckLyrs; a+=1)
 //Is going to be complex since it will essentially use a conic map projection
 
 //Precalculate certain variables
-a = window_get_width() / (terrainMapDepth-1)
-b = window_get_height() / ((terrainMapDepth-1) * 2)
+a = window_get_width() / (terrainMapDepthX-1)
+b = window_get_height() / ((terrainMapDepthY-1) * 2)
 c = sprite_get_texture(sprite13,0)
 
-for (i=0; i<terrainMapDepth-1; i+=1)
+texture_set_repeat(true)
+draw_set_color(c_white)
+
+for (j=0; j<terrainMapDepthY-1; j+=1)
 {
-    for (j=0; j<terrainMapDepth-1; j+=1)
+    for (i=0; i<terrainMapDepthX-1; i+=1)
     {
-        d = power(terrainMapDepth-j, 0.7) +1
-        e = power(terrainMapDepth-(j+1), 0.7) +1
+        d = power(terrainMapDepthY-j, 0.7) +1
+        e = power(terrainMapDepthY-(j+1), 0.7) +1
+        f = (terrainMapDepthX-1)-i  //Inverted counters, since these tiles are rendered from 
+        g = (terrainMapDepthY-1)-j  //top to bottom and the texture stretching is inverted as a result
+        
         //Vertexes are specified in clockwise order, starting from top left
-        draw_set_color(f)
+
         draw_primitive_begin_texture(pr_trianglefan, c)
-        draw_vertex_texture(i*a, j*b + horizon - terrainMap[i,j]/d, 0, 0)
-        draw_vertex_texture(i*a, (j+1)*b + horizon - terrainMap[i,j+1]/e, 0, 1)
-        draw_vertex_texture((i+1)*a, (j+1)*b + horizon - terrainMap[i+1,j+1]/e, 1, 1)
-        draw_vertex_texture((i+1)*a, j*b + horizon - terrainMap[i+1,j]/d, 1, 0)
+        draw_vertex_texture(i*a, j*b + horizon - terrainRenderMap[i,j]/d,               texPrjctMap[i,j]+heightmapPosX, 0)
+        draw_vertex_texture((i+1)*a, j*b + horizon - terrainRenderMap[i+1,j]/d,         texPrjctMap[i+1,j]+heightmapPosX, 0)
+        draw_vertex_texture((i+1)*a, (j+1)*b + horizon - terrainRenderMap[i+1,j+1]/e,   texPrjctMap[i+1,j+1]+heightmapPosX, 1)
+        draw_vertex_texture(i*a, (j+1)*b + horizon - terrainRenderMap[i,j+1]/e,         texPrjctMap[i,j+1]+heightmapPosX, 1)
         draw_primitive_end()
     }
 }
+
 
 
 //Draw the atmosphere
@@ -433,7 +475,8 @@ for (a=0; a<=enomivSpckLyrs; a+=1)
         d = false
         while d = false //Such a dangerous way to do things
         {
-            e = 3 + random(25)  //To create a random distribution up to 25 pixels inward
+            e = 3 + random(3) + 20*exp((-sqr(random(16)-8))/8)  //This function was originally 3 + random(25), is now a gaussian distribution
+            show_debug_message(e)
             b += cos(atmosSunAngle)*e
             c -= sin(atmosSunAngle)*e
             
@@ -456,10 +499,12 @@ surface_reset_target()
 
 #define drawPauseText
 //Just a helper script to make the pause menu easier!
+//Arguments: text, y position, highlight index
 draw_set_blend_mode(bm_add);
 draw_set_font(headingFont);
 draw_text(window_get_width()/2*pauseFade-string_width(argument0)/2, argument1, argument0);
-draw_text_color(window_get_width()/2-string_width(argument0)/2, argument1, argument0, c_white, c_white, c_white, c_white, pauseFade);
+if (sel = argument2) {a = c_aqua} else {a = c_white}
+draw_text_color(window_get_width()/2-string_width(argument0)/2, argument1, argument0, a, a, a, a, pauseFade);
 draw_set_blend_mode(bm_normal);
 
 #define menuHandler
@@ -550,6 +595,57 @@ for (a=0; a<5; a+=1)        //This loop parses through all six available menu sp
             draw_sprite(menu[a,0], 0, menu[a,1], menu[a,2]);
         }
 }
+
+#define terrainHandler
+//The terrain rendering is updated here
+
+//The technique is simple - update the moving heightmap and project to the mesh conically
+//The heightmap position is interpolated for fine control and moved for coarse control
+
+z = ""
+
+heightmapPosX += xGameMoveSpd*0.0005  //Increase our fine position tracker
+//Increase our interpolated values
+if (heightmapPosX > 1)
+{
+
+    for (i=0; i<terrainMapDepthX; i+=1)
+    {
+        for (j=0; j<terrainMapDepthY; j+=1)
+        {
+            //Offset by one
+            if (i < terrainMapDepthX-1) {terrainMap[i,j] = terrainMap[i+1,j]} else {terrainMap[i,j] = 0} //make_color_rgb(irandom(255),0,0)}
+            if (j==terrainMapDepthY-1) {terrainMap[i,j] = 0}
+        }
+    }
+    heightmapPosX = 0
+}
+
+for (i=0; i<terrainMapDepthX; i+=1)
+{
+    for (j=0; j<terrainMapDepthY; j+=1)
+    {
+        //equation: x position + conic projection offset + fine positional offset
+        terrainRenderMap[i,j] = interpolateMap(i + terrProjectionMap[i,j] + heightmapPosX, j)
+    }
+}
+
+#define interpolateMap
+//Argument 0 is x position, argument 1 is y position
+
+//Figure out the coarse component to x position
+a = floor(argument0)
+
+//Fine component
+b = argument0 - a
+
+//Show an error if we are out of bounds
+if(a > terrainMapDepthX-1) {show_message("interpolation arguments out of bounds," + string(a) + " " + string(b) + " " + string(heightmapPosX))}
+
+//Produce a weighted average of the two values
+c = terrainMap[a, argument1]*(1-b) + terrainMap[min(a+1, terrainMapDepthX-1), argument1]*b
+
+return c
 
 #define atmosphereHandler
 //The atmosphere handler is a FSM that manages different onscreen particles based on different zones
@@ -758,6 +854,27 @@ if (hlth <= 0)
 if (gamePause mod 2 == 0 && keyboard_check_pressed(keyLog[6]))
 {
     gamePause += 1; //Changes the pause mode to the next transition state
+    sel = 0         //Set our selected option to 0
+}
+
+//Change selection
+if (gamePause == 2)
+{
+    if (keyboard_check_pressed(keyLog[2])) {sel = (sel + 2)mod 3}
+    if (keyboard_check_pressed(keyLog[3])) {sel = (sel + 1)mod 3}
+}
+
+//Process selection and leave menu
+if (gamePause == 2 && (keyboard_check_pressed(keyLog[4]) or keyboard_check_pressed(vk_enter)))
+{
+    switch (sel)
+    {
+        case 0:
+            gamePause += 1;     //Unpause
+        case 1:
+    
+        case 2:
+    }
 }
 
 
@@ -783,6 +900,9 @@ if (gamePause > 0)
     
     //Call the enemyHandler scripts
     with (enemy) enemyHandler();
+    
+    //Call the terrainHandler scripts
+    terrainHandler()
     
     //Hack to add enemies when the space bar is pressed
     if (keyboard_check(vk_space))
